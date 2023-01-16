@@ -1,5 +1,4 @@
-#!/home/thomas/Dropbox/B.A.Vu/.venv/bin/python3
-# bash: source /home/thomas/Dropbox/B.A.Vu/.venv/bin/activate
+#!/usr/bin/python3
 #sudo chmod 666 /dev/ttyACM0
 from encodings import utf_8
 

@@ -1,4 +1,4 @@
-#!/home/thomas/Dropbox/B.A.Vu/.venv/bin/python3 
+#!/usr/bin/python3 
 import serial
 import serial.tools.list_ports
 from time import sleep

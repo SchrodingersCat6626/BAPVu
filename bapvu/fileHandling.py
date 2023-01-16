@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 from tkinter.filedialog import askdirectory
 import os

@@ -1,3 +1,4 @@
+#/usr/bin/python3
 from cmd import Cmd
 import communications #handles all communication related functions.
 import plotting #handles plotting
