@@ -136,9 +136,10 @@ def start_acquisition(file):
 
 
     for serial_obj in ser:
-        write_data(serial_obj, 'adc')
-        write_data(serial_obj, 's 10')
-        #write_data(serial_obj, 'beep')
+    # setting averaging to period to 0.1 seconds
+        write_data(serial_obj, 'set averaging 0.1')
+    # setting acquisition rate to 100/s
+        write_data(serial_obj, 's 100')
 
     while True:
         #reads data and concatenates with current time
@@ -148,8 +149,9 @@ def start_acquisition(file):
         #inserting time into list. Note time need to be a string since write requires string.
         data.insert(0, str(time()))
         #write_to_file(data, file)
+        #print(data)
         write_to_file(data,file)
-        sleep(0.1)
+        sleep(0.01)
 
     
     for serial_obj in ser:
