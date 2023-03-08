@@ -3,11 +3,15 @@ import serial
 import serial.tools.list_ports
 from time import sleep
 from time import time
+import itertools
 
 """
 To do:
 
     At the moment I am using the standard pyserial library which doesn't support parallel ports. I am just looping through the different ports. There is a pyParallel library which provides this feature. However, it is still experimental (https://github.com/pyserial/pyparalle). If this library becomes stable in the future I can explore implementing it in this project.
+
+
+    Also I think there are some advanced commands I don't have access to which should help fix some bugs... I think I can also remove the prompt to simplify some of the output cleaning up.
 
 """
 
@@ -25,39 +29,29 @@ def get_com_ports():
     
     return ports_list
 
-
 def write_data(ser, args):
     """
     accepts serial object and argument. Passes arguments into pyserial write() 
     """
     #clearing input buffer
     ser.reset_input_buffer()
+
+    #### Weird hacky solution to a bug where if it seems that the device will sometimes not clear the number 10 from the last command... I should probably fix this ###
+    # Basically this fix just sends a newline to the device which will run whatever command is saved
+    # which, if it is leftover nonsense will error durring the 2 second sleep and won't affect the next command
+    ser.write("\r\n".encode('ascii'))
+
+    #####
+
+    sleep(2)
     # formating arguments
-    stdin = args
-    stdin = ''.join([stdin+'\n'])
-    stdin = stdin.encode()
-    #writing arguments
-    ser.write(stdin)
-    sleep(1)
+    args = ''.join([args+' \r\n'])
+    #encoding arguments
+    ser.write(args.encode('ascii'))
+    sleep(2)
     # clearing output buffer
     ser.reset_output_buffer()
-    return
-
-def read_data(ser):
-    """
-    Reads data from device. Accepts a serial device as argument and returns a list which includes all the data for each channel with posix time on index 0.
-
-    """
-    try:
-        ser_bytes = ser.readline()
-        decoded_bytes = ser_bytes.decode()
-        output = format_output(decoded_bytes)
-
-    except:
-        ser.close()
-
-    return output
-
+    return 
 
 def format_output(output):
     """ 
@@ -69,16 +63,31 @@ def format_output(output):
     output = output.strip()
     #removing prompt. specific to podvu
     output = output.strip("EPU452 Readings")
-    output.insert(0, time.time())
 
     return output
 
 
 def write_to_file(data, file):
     with open(file, 'a') as f:
-        f.write(data)
+        f.write(','.join(data))
+        f.write('\n')
 
+def read_data(ser):
+    """
+    Reads data from device. Accepts a serial device as argument and returns a list which includes all the data for each channel with posix time on index 0.
 
+    """
+    try:
+        ser_bytes = ser.readline()
+        decoded_bytes = ser_bytes.decode()
+        output = format_output(decoded_bytes)
+
+        return output
+
+    except:
+        ser.close()
+
+        return
 
 def start_acquisition(file):
     """
@@ -122,16 +131,30 @@ def start_acquisition(file):
             stopbits=1
             )
 
-    for port in ports
+            for port in ports
     ]
 
 
     for serial_obj in ser:
+        write_data(serial_obj, 'adc')
         write_data(serial_obj, 's 10')
+        #write_data(serial_obj, 'beep')
 
     while True:
-
+        #reads data and concatenates with current time
         data = [read_data(serial_obj) for serial_obj in ser]
-        write_to_file(data, file)
+        # iterating over all the strings in the multiple lists of data and splitting at all the spaces. ex. "0.738 nA" -> "0.738","nA". then flattening multiple list into one list which could be written to file.
+        data = list(itertools.chain(*[string.split() for string in data]))
+        #inserting time into list. Note time need to be a string since write requires string.
+        data.insert(0, str(time()))
+        #write_to_file(data, file)
+        write_to_file(data,file)
         sleep(0.1)
 
+    
+    for serial_obj in ser:
+
+        serial_obj.close()
+    
+    
+    return
