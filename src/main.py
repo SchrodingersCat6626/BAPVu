@@ -115,7 +115,9 @@ class MyPrompt(Cmd):
     
     def do_devicelist(self, inp):
 
-        print(communications.get_com_ports())
+        print(
+                communications.get_com_ports()
+                )
 
         return
 
@@ -148,7 +150,24 @@ class MyPrompt(Cmd):
 
         return
 
-    
+    def do_stop(self, inp):
+    """Stops data acquisition by terminating data_aq_process process. Does not exit the program.
+    """           
+
+        if data_aq_process.is_alive(): 
+
+            data_aq_process.terminate() # sends sigterm to process
+
+            data_aq_process.join() # waits for program to terminate.
+        
+        except NameError: # if this exception the process was never defined.
+
+            print("Data acquisition process does not exist.")
+
+            return
+
+        return
+
 
     def do_spawn_shell(self, inp):
 
@@ -158,7 +177,6 @@ class MyPrompt(Cmd):
 def main():
     
     MyPrompt().cmdloop()
-
 
 if __name__ == '__main__':
 
