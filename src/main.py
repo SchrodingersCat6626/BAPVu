@@ -122,11 +122,29 @@ class MyPrompt(Cmd):
  
 
     def do_exit(self, inp):
+        """Exits the program
+        """
 
         # closing child processes
+        try:
 
+            if plotting_process.is_alive():
 
-        exit() # exits the program if no other threads are running?
+                plotting_process.terminate() # sends sigterm to process
+                
+                plotting_process.join() # waits for program to terminate.
+
+            if data_aq_process.is_alive(): 
+
+                data_aq_process.terminate() # sends sigterm to process
+                
+                data_aq_process.join() # waits for program to terminate.
+        
+        except NameError: # if this exception is raised either of the above processes were never defined so the program will simply exit
+
+            exit()
+
+        exit() # exits the program after closing other child processes.
 
         return
 
