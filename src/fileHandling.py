@@ -1,30 +1,19 @@
 #!/usr/bin/python3
-
-from tkinter.filedialog import askdirectory
-import os
+#import os
+from tkinter.filedialog import asksaveasfilename
 
 def namefile():
     """
-Asks user to select directory and filename for the data output file where the data will be output. Returns the filename in the form of a string.
-
     """
-    while True:
-        path = askdirectory(title='Select folder')
-        filename = input("What would you like to name the file (no extensions): ")
-        file = path+"/"+filename+".csv"
-        if os.path.isfile(file) == True:
-            print("Filename conflict", "File already exists. Choose another filename.")
-        elif os.path.isfile(file) == False:
-            break
-        else:
-            messagebox.showerror("Error", "Unknown error!")
-    return str(file)
-
-
+    file = asksaveasfilename() # Returns a filename with the full path. Note: does not create the file. If the file already exists they ask the user if 
+    return file
+ 
+ 
 def filecreate(file, fieldnames):
+    # maybe I should check if the file has content if it exists and ask for another confirmation?
     try:
         with open(file, 'x', encoding='UTF8') as f:
-            f.write()
-    except     file_write_error:
-        messagebox.showerror("File creation error", "Unable to create file.")
+            f.write(','.join(fieldnames))
 
+    except OSError:
+        messagebox.showerror("File creation error", "Unable to create file.")

@@ -1,182 +1,51 @@
 #/usr/bin/python3
-from cmd import Cmd
-from sys import exit
 import communications #handles all communication related functions.
+import fileHandling #file handling stuff 
+from sys import exit
+from datetime import datetime
+import multiprocessing as mp
+import subprocess
 import plotting #handles plotting
-import fileHandling #file handling stuff
-import multiprocessing as mp 
+#from interactiveShell import interactiveShell # This will be used for the do_spawnShell function.
+from bapvuPrompt import bapvuPrompt
 
 
-class MyPrompt(Cmd):
-
-    intro = ' Welcome to BAPVu shell.\n This CLI allows for the control of data aqcuisition equipment. \n \n Type help or ? to list commands.\n'
-    prompt = '(BAPVu) >'
-    file = None
-
-    def do_start(self, inp):
-        """    
-        Starts a new process which is used for data acquisition. 
-        This continues until exit or stop command is issued. If
-        the data is already being acquired, then it will exit the function.
-        """
-        try:
-            #check if data collection process already exist
-            if data_aq_process.is_alive():
-
-                print("Data acquisition process already running!")
-
-                return
-
-        except NameError: # if NameError exception is raised than process was not defined. aka doesn't exist.
-            # if the data_aq process doesn't exists the function will continue.
-
-        #check if at least one edaq device is connected. get_com_ports returns a list of serial devices. checks if list is empty
-            if not communications.get_com_ports():
-
-                print("No eDAQ device connected.")
-
-                return
-
-            # exporting some global variables
-            global file
-            file = fileHandling.namefile()
-
-            global start_time
-            start_time = datetime.now()
-
-            global sensors
-            sensors = input('Input sensor names separated by spaces: ')
-
-            global fieldnames
-            fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
-
-            fileHandling.filecreate(file, fieldnames) # taking above input to generate file.
-            
-            data_aq_process = mp(target="communications.start_acquisition",
-                    args=('file',)
-                    ) # creates process to do data aqcquisition
-
-            data_aq_process.start() # starts child process
-
-        # checking if process was started sucessfully.
-            if data_aq_process.is_alive():
-
-                print("Run initiated.")
-
-            else:
-
-                print(
-                        "The program encountered and error initiating run... \n The program will now exit."
-                        )
-
+def main(): 
+    #check if at least one edaq device is connected. get_com_ports returns a list of serial devices. checks if list is empty
+    if not communications.get_com_ports():
+        print("No eDAQ device connected.")
         return
 
-    def do_plot(self, inp):
-        """starts plotting data.
-        """
+    file = fileHandling.namefile()
+    start_time = datetime.now()
+    sensors = input('Input sensor names separated by spaces: ')
+    fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
 
-        # checks if data_aq_process if running exits if running
-        try:
+    fileHandling.filecreate(file, fieldnames) # taking above input to generate file.
 
-            data_aq_process.is_alive()
+    data_aq_process=mp.Process(target=communications.start_acquisition, args=('file',)) # creates process to do data aqcquisition
 
-            if not data_aq_process.is_alive(): 
+    data_aq_process.start() # starts child process
+    # checking if process was started sucessfully.
+    if data_aq_process.is_alive():
+        print("Run initiated.")
 
-                print(
-                        "Data acquisition process not running. Run start to start acquiring data."
-                        )
+    bapvuPrompt().cmdloop()
 
-                return
-            
-            else:
-
-                plotting_process = mp(target="plotting.plot",
-                        args=('file',)
-                        )
-
-                plotting_process.start()
-
-                if plotting_process.is_alive():
-
-                    print("Plotting initiated.")
-
-                else:
-
-                    print("Plotting error.")
-
-                return
-
-        except NameError:
-
-            print("Data acquisition process not running. Run start to start acquiring data.")
-
-            return
- 
-    
-    def do_devicelist(self, inp):
-
-        print(
-                communications.get_com_ports()
-                )
-
-        return
-
- 
-
-    def do_exit(self, inp):
-        """Exits the program
-        """
-
-        # closing child processes
-        try:
-
-            if plotting_process.is_alive():
-
-                plotting_process.terminate() # sends sigterm to process
-                
-                plotting_process.join() # waits for program to terminate.
-
-            if data_aq_process.is_alive(): 
-
-                data_aq_process.terminate() # sends sigterm to process
-                
-                data_aq_process.join() # waits for program to terminate.
-        
-        except NameError: # if this exception is raised either of the above processes were never defined so the program will simply exit
-
-            exit()
-
-        exit() # exits the program after closing other child processes.
-
-        return
-
-    def do_stop(self, inp):
-    """Stops data acquisition by terminating data_aq_process process. Does not exit the program.
-    """           
-
-        if data_aq_process.is_alive(): 
-
-            data_aq_process.terminate() # sends sigterm to process
-
-            data_aq_process.join() # waits for program to terminate.
-        
-        except NameError: # if this exception the process was never defined.
-
-            print("Data acquisition process does not exist.")
-
-            return
-
-        return
+    # terminates processes if the prompt is closed and they are still active
 
 
-    def do_spawn_shell(self, inp):
+    if data_aq_process.is_alive():
 
-        return
+        data_aq_process.terminate()
 
+        data_aq_process.join()
 
-def main():
-    
-    MyPrompt().cmdloop()
+    if plotting_process.is_alive():
+
+        plotting_process.terminate()
+
+        plotting_process.join()
 
 if __name__ == '__main__':
 
