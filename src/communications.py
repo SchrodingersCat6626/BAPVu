@@ -71,7 +71,7 @@ def format_output(output):
     return output
 
 
-def write_to_file(data, file):
+def write_to_file(data, filepath):
     with open(file, 'a') as f:
         f.write(','.join(data))
         f.write('\n')
@@ -93,7 +93,7 @@ def read_data(ser):
 
         return
 
-def start_acquisition(file):
+def start_acquisition(filepath):
     """
     """
     # Reading a list of com ports
