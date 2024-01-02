@@ -72,7 +72,7 @@ def format_output(output):
 
 
 def write_to_file(data, filepath):
-    with open(file, 'a') as f:
+    with open(filepath, 'a') as f:
         f.write(','.join(data))
         f.write('\n')
 
@@ -152,7 +152,7 @@ def start_acquisition(filepath):
         data.insert(0, str(time()))
         #write_to_file(data, file)
         #print(data)
-        write_to_file(data,file)
+        write_to_file(data,filepath)
         sleep(0.01)
 
     

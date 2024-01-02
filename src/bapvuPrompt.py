@@ -1,11 +1,11 @@
 from cmd import Cmd
 import communications #handles all communication related functions.
-import fileHandling #file handling stuff 
 from sys import exit
 from datetime import datetime
 import multiprocessing as mp
 import subprocess
 import plotting #handles plotting
+import fileHandling #file handling stuff 
 #from interactiveShell import interactiveShell # This will be used for the do_spawnShell function.
 
 """
@@ -15,19 +15,21 @@ To-do: I should add a table with all information during acquisition in cli as a 
 There is a bug that if the file name already exists the program crashes. Add extra check to do_start function. Also defining a bunch of global variables looks kind of stupid.
 """
 
+
+
 class bapvuPrompt(Cmd):
 
     intro = ' Welcome to BAPVu shell.\n This CLI allows for the control of data aqcuisition equipment. \n \n Type help or ? to list commands.\n'
     prompt = '(BAPVu) >'
     file = None
     
-    global filepath
-    filepath=fileHandling.namefile() # must select filename before starting program.
-    sensors = input('Input sensor names separated by spaces: ')
-    fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
-    fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
-
-
+    def preloop(self):
+        global filepath
+        filepath=fileHandling.namefile() # must select filename before starting program.
+        sensors = input('Input sensor names separated by spaces: ')
+        fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
+        fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
+    
     def do_start(self,inp):
 
         if not communications.get_com_ports():
@@ -36,11 +38,15 @@ class bapvuPrompt(Cmd):
         
         start_time = datetime.now()
 
-        #global data_aq_process
+        global data_aq_process
         data_aq_process=mp.Process(target=communications.start_acquisition, args=(filepath,)) # creates process to do data aqcquisition
+
+        data_aq_process.start()
 
         if data_aq_process.is_alive():
             print("Run initiated.")
+
+        print(data_aq_process)
         
         return
 
@@ -52,7 +58,7 @@ class bapvuPrompt(Cmd):
         return
 
 
-    def do_plot(self, inp,file):
+    def do_plot(self, inp):
         """starts plotting data.
         """
 
@@ -65,8 +71,9 @@ class bapvuPrompt(Cmd):
 
             if data_aq_process.is_alive():
 
+
                 plotting_process = mp.Process(target=plotting.plot,
-                        args=(file,)
+                        args=(filepath,)
                         )
 
                 plotting_process.start()
@@ -134,21 +141,20 @@ class bapvuPrompt(Cmd):
 
     def do_stop(self, inp):
         """Stops data acquisition by terminating data_aq_process process. Does not exit the program.
-        """   
-
-        print(data_aq_process)     
-
-        #try:
+        """      
+        try:
             
-            #data_aq_process.terminate() # sends sigterm to process
+            data_aq_process.kill() # sends sigterm to process
             
-            #data_aq_process.join() # waits for program to terminate.
+            data_aq_process.join() # waits for program to terminate.
+
+            print(data_aq_process)
             
-        #except NameError: # if this exception the process was never defined.
+        except NameError: # if this exception the process was never defined.
 
-        #    print("Data acquisition process does not exist.")
+            print("Data acquisition process does not exist.")
 
-        #    return
+            return
 
         return
 
