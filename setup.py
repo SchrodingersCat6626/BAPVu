@@ -3,6 +3,16 @@ import sys
 import importlib
 import re
 
+```
+1. Installs all required dependencies. (Assumes user has already installed python 3.11)
+
+To do:
+
+    1. Copy the program to the program directory.
+    2. Create shortcut to program on desktop.
+
+```
+
 
 
 def is_installed(package):

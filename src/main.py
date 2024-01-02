@@ -20,10 +20,10 @@ def main():
     start_time = datetime.now()
     sensors = input('Input sensor names separated by spaces: ')
     fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
-
     fileHandling.filecreate(file, fieldnames) # taking above input to generate file.
 
-    data_aq_process=mp.Process(target=communications.start_acquisition, args=('file',)) # creates process to do data aqcquisition
+
+    data_aq_process=mp.Process(target=communications.start_acquisition, args=(file,)) # creates process to do data aqcquisition
 
     data_aq_process.start() # starts child process
     # checking if process was started sucessfully.

@@ -95,8 +95,6 @@ def read_data(ser):
 
 def start_acquisition(file):
     """
-
-
     """
     # Reading a list of com ports
     ports = get_com_ports()
