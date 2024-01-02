@@ -15,8 +15,10 @@ def is_installed(package):
                     package
                     )
                 )
-                return True
+        return True
+    
     except:
+        
         return False
 
 
@@ -38,3 +40,4 @@ def install_depends():
 
 
 install_depends()
+
