@@ -22,4 +22,10 @@ It can be seen that the device is owned by root. You must add yourself to the di
 sudo usermod -aG dialout <user>
 ```
 
+Windows Instructions:
+
+- Download python 3.11 GUI installer.
+- Check 'add to path' box.
+- cd into program root directory.
+- Run setup.py.
 
