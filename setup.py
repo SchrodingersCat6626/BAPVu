@@ -2,16 +2,14 @@ import subprocess
 import sys
 import importlib
 import re
+from os import name
 
-```
-1. Installs all required dependencies. (Assumes user has already installed python 3.11)
+#1. Installs all required dependencies. (Assumes user has already installed python 3.11)
 
-To do:
-
-    1. Copy the program to the program directory.
-    2. Create shortcut to program on desktop.
-
-```
+#To do:
+#
+#    1. Copy the program to the program directory.
+#    2. Create shortcut to program on desktop.
 
 
 
@@ -50,4 +48,36 @@ def install_depends():
 
 
 install_depends()
+
+### Creating desktop shortcut for the windows users.
+### I may need to install pywin32 or something to get win32com?
+if name == 'nt':
+    import shutil
+    import os, winshell
+    
+    desktop = winshell.desktop()
+    ## Copying files to program folder.
+    shutil.copytree(os.getcwd(), 'C:'+'\\'+'Program Files'+'\\'+'BAPVu')
+
+    from win32com.client import Dispatch
+    
+    desktop = winshell.desktop()
+    path = os.path.join(desktop, "BAPVu.lnk")
+    target = 'C:'+'\\'+'Program Files'+'\\'+'BAPVu'+'\\'+'src'+'\\'+'main.py'
+    wDir = 'C:'+'\\'+'Program Files'+'\\'+'BAPVu'+'\\'+'src'
+    #icon =
+    
+    shell = Dispatch('WScript.Shell')
+    shortcut = shell.CreateShortCut(path)
+    shortcut.Targetpath = target
+    shortcut.WorkingDirectory = wDir
+    #shortcut.IconLocation = icon
+    shortcut.save()
+
+            
+# for mac and linux(here, os.name is 'posix')
+
+else:
+    
+    print('Not adding to binaries yet.')
 

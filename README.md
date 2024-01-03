@@ -26,6 +26,8 @@ Windows Instructions:
 
 - Download python 3.11 GUI installer.
 - Check 'add to path' box.
+- Open command prompt as administrator.
 - cd into program root directory.
 - Run setup.py.
+- The BAPVu program files have been copied to program directory and a shortcut has been added to desktop.
 
