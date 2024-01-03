@@ -4,4 +4,4 @@ from bapvuPrompt import bapvuPrompt
 
 if __name__ == '__main__':
     
-    bapvuPrompt().cmdloop()
+    bapvuPrompt(completekey='tab', stdin=None, stdout=None).cmdloop()
