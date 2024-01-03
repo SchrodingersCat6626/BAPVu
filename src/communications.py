@@ -4,12 +4,13 @@ import serial.tools.list_ports
 from time import sleep
 from time import time
 import itertools
+import csv
 
 """
 To do:
 
     Better data formatting (check if data that will be written to file is correct len)
-    
+    Bug where one of the devices stops sending data. I should check if both devices are sending data.
 """
 
 def get_com_ports():
@@ -65,9 +66,12 @@ def format_output(output):
 
 
 def write_to_file(data, filepath):
-    with open(filepath, 'a') as f:
-        f.write(','.join(data))
-        f.write('\n')
+    """ Takes a list of list as input and writes it to file
+    """
+    with open(filepath, 'a',newline='') as f:
+        wr=csv.writer(f, delimiter=',')
+        wr.writerows(data)
+        f.close()
 
 def read_data(ser):
     """
@@ -119,7 +123,7 @@ def start_acquisition(filepath):
     ser = [
             serial.Serial(
             port = port,
-            timeout=0,
+            timeout=None, #Waits until data is returned indefinitely
             baudrate = 115200,
             bytesize=8,
             parity='N',
@@ -135,22 +139,37 @@ def start_acquisition(filepath):
         write_data(serial_obj, 'set averaging 0.1')
     # setting acquisition rate to 100/s
         write_data(serial_obj, 's 100')
-
+        
+    buffer = [] # to save data to file in chunks
+    
     while True:
+        sleep(0.01)
+
         #reads data and concatenates with current time
         data = [read_data(serial_obj) for serial_obj in ser]
+        # Format:
+        # ['7.261632 nA     2.6340 nA      -66.2 nA      Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
+
         # iterating over all the strings in the multiple lists of data and splitting at all the spaces. ex. "0.738 nA" -> "0.738","nA". then flattening multiple list into one list which could be written to file.
         data = list(
             itertools.chain(*
             [string.split() if string is not None else '' for string in data]
             )
             )
+        # Output format:
+        # ['-1.822826', 'nA', '1.6527', 'nA', '-70.4', 'nA', 'Off', '-', '-118.548', 'nA', '99.967', 'nA', '52.572', 'nA', '21.279', 'nA']
+
         #inserting time into list. Note time need to be a string since write requires string.
         data.insert(0, str(time()))
-        #write_to_file(data, file)
-        #print(data)
-        write_to_file(data,filepath)
-        sleep(0.01)
+
+        buffer.append(data)
+
+        if len(buffer) == 500:
+            write_to_file(buffer,filepath)
+            buffer = [] # clears buffer
+        else:
+            continue
+        
 
     
     for serial_obj in ser:
