@@ -25,10 +25,15 @@ class bapvuPrompt(Cmd):
     file = None
     
     def preloop(self):
+
         global filepath
+
         filepath=fileHandling.namefile() # must select filename before starting program.
+
         sensors = input('Input sensor names separated by spaces: ')
+
         fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
+
         fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
     
     def do_start(self,inp):
@@ -42,6 +47,7 @@ class bapvuPrompt(Cmd):
             return
         
         global data_aq_process
+        
         data_aq_process=mp.Process(target=communications.start_acquisition, 
         args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
 
@@ -124,13 +130,6 @@ class bapvuPrompt(Cmd):
 
         # closing child processes
         try:
-
-            if plotting_process.is_alive():
-
-                plotting_process.terminate() # sends sigterm to process
-                
-
-                plotting_process.join() # waits for program to terminate.
 
             if data_aq_process.is_alive(): 
 
