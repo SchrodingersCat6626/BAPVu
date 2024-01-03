@@ -8,15 +8,8 @@ import itertools
 """
 To do:
 
-    At the moment I am using the standard pyserial library which doesn't support parallel ports. I am just looping through the different ports. There is a pyParallel library which provides this feature. However, it is still experimental (https://github.com/pyserial/pyparalle). If this library becomes stable in the future I can explore implementing it in this project.
-
-
-    Also I think there are some advanced commands I don't have access to which should help fix some bugs... I think I can also remove the prompt to simplify some of the output cleaning up.
+    Better data formatting (check if data that will be written to file is correct len)
     
-    
-    
-    IMPORTANT: I NEED TO ADD NAN FOR ALL BLANK DATA SPOTS. OTHERWISE HOW WILL I PLOT! The columns won't line up...
-
 """
 
 def get_com_ports():
@@ -147,7 +140,11 @@ def start_acquisition(filepath):
         #reads data and concatenates with current time
         data = [read_data(serial_obj) for serial_obj in ser]
         # iterating over all the strings in the multiple lists of data and splitting at all the spaces. ex. "0.738 nA" -> "0.738","nA". then flattening multiple list into one list which could be written to file.
-        data = list(itertools.chain(*[string.split() for string in data]))
+        data = list(
+            itertools.chain(*
+            [string.split() if string is not None else '' for string in data]
+            )
+            )
         #inserting time into list. Note time need to be a string since write requires string.
         data.insert(0, str(time()))
         #write_to_file(data, file)
