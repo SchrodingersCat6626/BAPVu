@@ -1,6 +1,7 @@
 from cmd import Cmd
 import communications #handles all communication related functions.
 from sys import exit
+from os import system, name
 from datetime import datetime
 import multiprocessing as mp
 import subprocess
@@ -157,6 +158,18 @@ class bapvuPrompt(Cmd):
             return
 
         return
+
+        # define our clear functio
+        # 
+    def do_clear(self,inp):
+        # for windows
+        if name == 'nt':
+            _ = system('cls')
+            
+        # for mac and linux(here, os.name is 'posix')
+        
+        else:
+            _ = system('clear')
 
 
     #def do_spawnShell(self, inp):
