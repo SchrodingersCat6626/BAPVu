@@ -123,7 +123,7 @@ def start_acquisition(filepath):
     ser = [
             serial.Serial(
             port = port,
-            timeout=None, #Waits until data is returned indefinitely
+            timeout=None, #Waits indefinitely for data to be returned.
             baudrate = 115200,
             bytesize=8,
             parity='N',
@@ -141,14 +141,18 @@ def start_acquisition(filepath):
         write_data(serial_obj, 's 100')
         
     buffer = [] # to save data to file in chunks
+    chunk_size=500
+    wait_time = 0.01
     
     while True:
-        sleep(0.01)
+        sleep(wait_time)
 
         #reads data and concatenates with current time
         data = [read_data(serial_obj) for serial_obj in ser]
         # Format:
         # ['7.261632 nA     2.6340 nA      -66.2 nA      Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
+
+        time_received = time()
 
         # iterating over all the strings in the multiple lists of data and splitting at all the spaces. ex. "0.738 nA" -> "0.738","nA". then flattening multiple list into one list which could be written to file.
         data = list(
@@ -160,11 +164,11 @@ def start_acquisition(filepath):
         # ['-1.822826', 'nA', '1.6527', 'nA', '-70.4', 'nA', 'Off', '-', '-118.548', 'nA', '99.967', 'nA', '52.572', 'nA', '21.279', 'nA']
 
         #inserting time into list. Note time need to be a string since write requires string.
-        data.insert(0, str(time()))
+        data.insert(0, str(time_received))
 
         buffer.append(data)
 
-        if len(buffer) == 500:
+        if len(buffer) == chunk_size:
             write_to_file(buffer,filepath)
             buffer = [] # clears buffer
         else:
