@@ -36,6 +36,10 @@ class bapvuPrompt(Cmd):
         if not communications.get_com_ports():
             print("No eDAQ device connected.")
             return
+
+        if data_aq_process.is_alive():
+            print('Data acquisition process already running!')
+            return
         
         start_time = datetime.now()
 
