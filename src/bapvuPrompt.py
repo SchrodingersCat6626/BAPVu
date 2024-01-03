@@ -33,20 +33,20 @@ class bapvuPrompt(Cmd):
     
     def do_start(self,inp):
 
+        if 'data_aq_process' in globals():
+            print('Data acquisition process already running!')
+            return
+
         if not communications.get_com_ports():
             print("No eDAQ device connected.")
             return
-
-        if data_aq_process.is_alive():
-            print('Data acquisition process already running!')
-            return
         
-        start_time = datetime.now()
-
         global data_aq_process
         data_aq_process=mp.Process(target=communications.start_acquisition, 
         args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
 
+        
+        start_time = datetime.now()
         data_aq_process.start()
 
         if data_aq_process.is_alive():
