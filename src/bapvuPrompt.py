@@ -40,7 +40,8 @@ class bapvuPrompt(Cmd):
         start_time = datetime.now()
 
         global data_aq_process
-        data_aq_process=mp.Process(target=communications.start_acquisition, args=(filepath,)) # creates process to do data aqcquisition
+        data_aq_process=mp.Process(target=communications.start_acquisition, 
+        args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
 
         data_aq_process.start()
 
@@ -74,7 +75,7 @@ class bapvuPrompt(Cmd):
 
 
                 plotting_process = mp.Process(target=plotting.plot,
-                        args=(filepath,)
+                        args=(filepath,), name='plotting'
                         )
 
                 plotting_process.start()
