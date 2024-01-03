@@ -12,8 +12,10 @@ def namefile():
 def filecreate(file, fieldnames):
     # maybe I should check if the file has content if it exists and ask for another confirmation?
     try:
-        with open(file, 'x', encoding='UTF8') as f:
+        with open(file, 'w', encoding='UTF8') as f:
             f.write(','.join(fieldnames))
 
     except OSError:
-        messagebox.showerror("File creation error", "Unable to create file.")
+        print("File creation error", "Unable to create file.")
+
+
