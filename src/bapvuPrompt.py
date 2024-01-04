@@ -36,6 +36,7 @@ class bapvuPrompt(Cmd):
         fieldnames = ',units,'.join(fieldnames)
         fieldnames = fieldnames.split(',')
         fieldnames.insert(0,'systime')
+        fieldnames.append('unit')
 
         fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
     

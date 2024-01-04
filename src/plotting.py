@@ -26,7 +26,9 @@ def plot(file):
     col = ["#000000", "#E69F00", "#56B4E9", "#009E73","#F0E442", "#0072B2", "#D55E00", "#CC79A7" , "#0e2f8a", "#210f87",'#531078','#801455', '#8f1622']
 
     #intially reading from file to use in initializing the plot (ie. how many columns there are)
-    data = pd.read_csv(file, delim_whitespace=True)
+    data = pd.read_csv(file)
+    data = data.loc[:,~data.columns.str.startswith('unit')] # removing the unit columns
+
     #list of columns for various stuff below...
     list_of_columns = [column for column in data]
 
@@ -49,9 +51,10 @@ def plot(file):
     #animate function. If I actually understood this well this wouldn't have taken me like 4hrs to figure out how to get the animation to work..
     def animate(i):
         #loads data from file
-        data = pd.read_csv(file, delim_whitespace=True)
+        data = pd.read_csv(file)
+        data = data.loc[:,~data.columns.str.startswith('unit')] # removing the unit columns
         #time column (x-values)
-        x = data['time']
+        x = data['systime']
         #clears axis
         plt.cla()
         #gets all the y data. i is the current frame... I think.... 
@@ -61,6 +64,6 @@ def plot(file):
             ax.plot(x, data[list_of_columns[idx]], label=list_of_columns[idx], color=col[idx])
 
 
-    ani = FuncAnimation(plt.gcf(), animate, interval=1000)
+    ani = FuncAnimation(plt.gcf(), animate, interval=2000)
     plt.show()
 
