@@ -1,26 +1,19 @@
 #!/usr/bin/python3
-"""
-
-Note: the first column should be time and should probably be posix time. but it must be named time for this to work!
-
-
-"""
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib import animation
 import numpy as np
 
+"""
+    To do: 
+
+        -ignore columns that are non numeric (ie. 'off')
+
+        
+"""
+
 def plot(file):
-    """
-    Very messy function which plots data from a file (given as an argument) in realtime using the FuncAnimation from matplotlib. 
-    Todo: 
-
-    - dealing with units!?
-    - there seems to currently be a bug where the y axis of  all the subplots except for the bottom one do not rescale y axis when the data points increase significantly...
-    - this function really needs to be cleaned up properly...
-
-        """
 
     # colour blind accessible default colours for plot.
     col = ["#000000", "#E69F00", "#56B4E9", "#009E73","#F0E442", "#0072B2", "#D55E00", "#CC79A7" , "#0e2f8a", "#210f87",'#531078','#801455', '#8f1622']
