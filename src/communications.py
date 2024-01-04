@@ -9,8 +9,9 @@ import csv
 """
 To do:
 
-    Better data formatting (check if data that will be written to file is correct len)
-    Bug where one of the devices stops sending data. I should check if both devices are sending data.
+    - add basic features.
+    - Channel names should be default to number of channels and there should be a funct to name channels.
+
 """
 
 def get_com_ports():
@@ -138,11 +139,11 @@ def start_acquisition(filepath):
     # setting averaging to period to 0.1 seconds
         write_data(serial_obj, 'set averaging 0.1')
     # setting acquisition rate to 100/s
-        write_data(serial_obj, 's 100')
+        write_data(serial_obj, 'i 1')
         
     buffer = [] # to save data to file in chunks
-    chunk_size=500
-    wait_time = 0.01
+    chunk_size=5
+    wait_time = 1
     daq_num = len(get_com_ports())
     dev_channel_num = 4
     data_expected_per_channel = 2 # number or 'off' and a unit.
