@@ -8,9 +8,12 @@ import numpy as np
 """
     To do: 
 
+        -Optimize performance of plotting (very slow).
+        -Set blit to True to optimize performance.
+
         -ignore columns that are non numeric (ie. 'off')
 
-        
+
 """
 
 def plot(file):
@@ -57,6 +60,6 @@ def plot(file):
             ax.plot(x, data[list_of_columns[idx]], label=list_of_columns[idx], color=col[idx])
 
 
-    ani = FuncAnimation(plt.gcf(), animate, interval=2000)
+    ani = FuncAnimation(plt.gcf(), animate, interval=2000, repeat=False)
     plt.show()
 
