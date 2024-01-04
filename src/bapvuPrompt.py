@@ -32,7 +32,10 @@ class bapvuPrompt(Cmd):
 
         sensors = input('Input sensor names separated by spaces: ')
 
-        fieldnames = ['systime', 'date', 'time_elapsed'] + sensors.split()
+        fieldnames = sensors.split()
+        fieldnames = ',units,'.join(fieldnames)
+        fieldnames = fieldnames.split(',')
+        fieldnames.insert(0,'systime')
 
         fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
     
@@ -46,8 +49,9 @@ class bapvuPrompt(Cmd):
             print("No eDAQ device connected.")
             return
         
-        global data_aq_process
+        #global data_aq_process
         
+        global data_aq_process
         data_aq_process=mp.Process(target=communications.start_acquisition, 
         args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
 
@@ -154,6 +158,9 @@ class bapvuPrompt(Cmd):
             data_aq_process.join() # waits for program to terminate.
 
             print(data_aq_process)
+
+            del data_aq_process
+
             
         except NameError: # if this exception the process was never defined.
 

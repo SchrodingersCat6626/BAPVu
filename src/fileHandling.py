@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 #import os
 from tkinter.filedialog import asksaveasfilename
+import csv
 
 def namefile():
     """
@@ -12,10 +13,11 @@ def namefile():
 def filecreate(file, fieldnames):
     # maybe I should check if the file has content if it exists and ask for another confirmation?
     try:
-        with open(file, 'w', encoding='UTF8') as f:
-            f.write(','.join(fieldnames))
+        with open(file, 'w',newline='') as f:
+            wr=csv.writer(f, delimiter=',')
+            wr.writerow(fieldnames)
+            f.close()
 
     except OSError:
         print("File creation error", "Unable to create file.")
-
 
