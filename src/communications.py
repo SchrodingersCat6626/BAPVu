@@ -143,6 +143,11 @@ def start_acquisition(filepath):
     buffer = [] # to save data to file in chunks
     chunk_size=500
     wait_time = 0.01
+    daq_num = len(get_com_ports())
+    dev_channel_num = 4
+    data_expected_per_channel = 2 # number or 'off' and a unit.
+    data_len_per_device = dev_channel_num*data_expected_per_channel
+    expected_rowsize = data_len_per_device*daq_num
     
     while True:
         sleep(wait_time)
@@ -150,7 +155,11 @@ def start_acquisition(filepath):
         #reads data and concatenates with current time
         data = [read_data(serial_obj) for serial_obj in ser]
         # Format:
-        # ['7.261632 nA     2.6340 nA      -66.2 nA      Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
+        # ['7.261632 nA     2.6340 nA      -66.2 nA       Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
+
+        if len(data) != daq_num:
+            print('Warning: Data not received for one or more DAQ devices. Discarding datapoint.')
+            continue
 
         time_received = time()
 
@@ -161,9 +170,22 @@ def start_acquisition(filepath):
             )
             )
         # Output format:
-        # ['-1.822826', 'nA', '1.6527', 'nA', '-70.4', 'nA', 'Off', '-', '-118.548', 'nA', '99.967', 'nA', '52.572', 'nA', '21.279', 'nA']
+        # ['-1.822826', 'nA', 
+        # '1.6527', 'nA', 
+        # '-70.4', 'nA', 
+        # 'Off', '-', 
+
+        # '-118.548', 'nA', 
+        # '99.967', 'nA', 
+        # '52.572', 'nA', 
+        # '21.279', 'nA']
 
         #inserting time into list. Note time need to be a string since write requires string.
+
+        if len(data) != expected_rowsize:
+            print('Warning: Unexpected row size. Row discarded.')
+            continue
+
         data.insert(0, str(time_received))
 
         buffer.append(data)
