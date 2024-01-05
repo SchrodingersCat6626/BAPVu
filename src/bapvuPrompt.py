@@ -39,6 +39,12 @@ class bapvuPrompt(Cmd):
         fieldnames.append('unit')
 
         fileHandling.filecreate(filepath, fieldnames) # taking above input to generate file.
+
+
+    def emptyline(self):
+        """Overwriting behaviour of repeating last command
+        """
+        return
     
     def do_start(self,inp):
 
@@ -87,6 +93,9 @@ class bapvuPrompt(Cmd):
 
 
             if data_aq_process.is_alive():
+
+                ## To do: Add check to see if plotting process exists. If exists, check if alive.
+                ## If not alive then create process and start process.
 
 
                 plotting_process = mp.Process(target=plotting.plot,
@@ -153,7 +162,9 @@ class bapvuPrompt(Cmd):
         """Stops data acquisition by terminating data_aq_process process. Does not exit the program.
         """      
         try:
-            
+
+            ### For some reason it always gives a name error.
+            ### Fix this bug.
             data_aq_process.kill() # sends sigterm to process
             
             data_aq_process.join() # waits for program to terminate.
