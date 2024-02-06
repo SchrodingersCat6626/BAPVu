@@ -201,5 +201,3 @@ def start_acquisition(filepath):
     
     
     return
-
-start_acquisition("test_data_bug.txt")
