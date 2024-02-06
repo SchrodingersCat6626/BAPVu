@@ -11,6 +11,9 @@ To do:
 
     - add basic features.
     - Channel names should be default to number of channels and there should be a funct to name channels.
+    - Need to add exception if x number of rows have been discarded (I should try to reset DAQ if that happens.)
+    - If it can't find devices anymore it should throw error or get rid of unresponding eDAQ or if none are responding then throw error.
+    - Add threading to reading serial ports.
 
 """
 
@@ -59,9 +62,14 @@ def format_output(output):
 
     """
     #removing newline and other whitespace char
-    output = output.strip()
+    output = output.split()
     #removing prompt. specific to podvu
-    output = output.strip("EPU452 Readings")
+    try:
+        output.remove("EPU452")
+        output.remove("Readings")
+    except:
+        pass
+
 
     return output
 
@@ -142,7 +150,7 @@ def start_acquisition(filepath):
         write_data(serial_obj, 'i 1')
         
     buffer = [] # to save data to file in chunks
-    chunk_size=5
+    chunk_size=30
     wait_time = 1
     daq_num = len(get_com_ports())
     dev_channel_num = 4
@@ -153,41 +161,29 @@ def start_acquisition(filepath):
     while True:
         sleep(wait_time)
 
+        data = []
+        for serial_obj in ser:
+            new_data = read_data(serial_obj)
+            data.extend(new_data)
+
         #reads data and concatenates with current time
-        data = [read_data(serial_obj) for serial_obj in ser]
+        #data = [read_data(serial_obj) for serial_obj in ser]
         # Format:
         # ['7.261632 nA     2.6340 nA      -66.2 nA       Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
 
-        if len(data) != daq_num:
-            print('Warning: Data not received for one or more DAQ devices. Discarding datapoint.')
-            continue
+        #if len(data) != daq_num:
+        #    print('Warning: Data not received for one or more DAQ devices. Discarding datapoint.')
+        #    continue
 
         time_received = time()
-
-        # iterating over all the strings in the multiple lists of data and splitting at all the spaces. ex. "0.738 nA" -> "0.738","nA". then flattening multiple list into one list which could be written to file.
-        data = list(
-            itertools.chain(*
-            [string.split() if string is not None else '' for string in data]
-            )
-            )
-        # Output format:
-        # ['-1.822826', 'nA', 
-        # '1.6527', 'nA', 
-        # '-70.4', 'nA', 
-        # 'Off', '-', 
-
-        # '-118.548', 'nA', 
-        # '99.967', 'nA', 
-        # '52.572', 'nA', 
-        # '21.279', 'nA']
-
-        #inserting time into list. Note time need to be a string since write requires string.
 
         if len(data) != expected_rowsize:
             print('Warning: Unexpected row size. Row discarded.')
             continue
 
         data.insert(0, str(time_received))
+
+        print(data)
 
         buffer.append(data)
 
@@ -205,3 +201,5 @@ def start_acquisition(filepath):
     
     
     return
+
+start_acquisition("test_data_bug.txt")
