@@ -183,8 +183,6 @@ def start_acquisition(filepath):
 
         data.insert(0, str(time_received))
 
-        print(data)
-
         buffer.append(data)
 
         if len(buffer) == chunk_size:
