@@ -24,6 +24,8 @@ sudo usermod -aG dialout <user>
 
 Windows Instructions:
 
+- Download https://visualstudio.microsoft.com/visual-cpp-build-tools/ to build pygtk (GTk3agg backend)
+- Install c++ build components.
 - Download python 3.11 GUI installer.
 - Check 'add to path' box.
 - Open command prompt as administrator.
