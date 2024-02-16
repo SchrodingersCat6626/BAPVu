@@ -105,24 +105,28 @@ def start_acquisition(filepath):
     # Reading a list of com ports
     ports = get_com_ports()
 
-    if len(ports) > 4:
+    if len(ports) > 3:
+
+        print("Reading more than 3 eDAQ's is currently unsuported!") ## since the plotting program only supports 3 eDAQ's currently.
+
+        return
         
-        print("Warning, reading from more than 4 eDAQ's at a time is not recommended...")
+    #    print("Warning, reading from more than 4 eDAQ's at a time is not recommended...")
 
-        while True:
+    #    while True:
 
-            anwser = input("Would you like to proceed(y/n): ")
-            
-            if anwser == y:
+     #       anwser = input("Would you like to proceed(y/n): ")
+     #       
+     #       if anwser == y:
 
-                break
+     #           break
 
-            elif anwser == n:
+      #      elif anwser == n:
 
-                return (print("Cancelling..."))
-            else:
+       #         return (print("Cancelling..."))
+        #    else:
 
-                print("Please enter valid input.")
+         #       print("Please enter valid input.")
 
     """
     I should also limit the number of eDAQ's to 3-4 per session. To run more one can always run the program twice.... 
