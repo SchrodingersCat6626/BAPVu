@@ -1,5 +1,6 @@
 from cmd import Cmd
 import communications #handles all communication related functions.
+import alkalinity_module
 from sys import exit
 from os import system, name
 from datetime import datetime
@@ -8,6 +9,7 @@ import subprocess
 import plotting #handles plotting
 import fileHandling #file handling stuff 
 #from interactiveShell import interactiveShell # This will be used for the do_spawnShell function.
+import tabulate
 
 """
 To-do: I should add a table with all information during acquisition in cli as a function which updates periodically.
@@ -15,8 +17,6 @@ To-do: I should add a table with all information during acquisition in cli as a 
 
 There is a bug that if the file name already exists the program crashes. Add extra check to do_start function. Also defining a bunch of global variables looks kind of stupid.
 """
-
-
 
 class bapvuPrompt(Cmd):
 
@@ -30,7 +30,12 @@ class bapvuPrompt(Cmd):
 
         filepath=fileHandling.namefile() # must select filename before starting program.
 
+        print(filepath)
+
         sensors = input('Input sensor names separated by spaces: ')
+
+
+        global fieldnames
 
         fieldnames = sensors.split()
         fieldnames = ',units,'.join(fieldnames)
@@ -46,37 +51,90 @@ class bapvuPrompt(Cmd):
         """
         return
     
-    def do_start(self,inp):
+    def do_start(self,inp=None,inp2=None):
 
-        if 'data_aq_process' in globals():
-            print('Data acquisition process already running!')
-            return
+        match inp:
 
-        if not communications.get_com_ports():
-            print("No eDAQ device connected.")
-            return
-        
-        #global data_aq_process
-        
-        global data_aq_process
-        data_aq_process=mp.Process(target=communications.start_acquisition, 
-        args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
+            case None:
 
-        
-        start_time = datetime.now()
-        data_aq_process.start()
+                if 'data_aq_process' in globals():
+                    print('Data acquisition process already running!')
+                    return
 
-        if data_aq_process.is_alive():
-            print("Run initiated.")
+                if not communications.get_com_ports():
+                    print("No eDAQ device connected.")
+                    return
+                
+                #global data_aq_process
+                
+                global data_aq_process
+                data_aq_process=mp.Process(target=communications.start_acquisition, 
+                args=(filepath,),name='data_acquisition') # creates process to do data aqcquisition
 
-        print(data_aq_process)
-        
-        return
+                
+                start_time = datetime.now()
+                data_aq_process.start()
+
+                if data_aq_process.is_alive():
+                    print("Run initiated.")
+
+                print(data_aq_process)
+
+                return
+
+            case '--alkalinity':
+
+                match inp2:
+
+                    case None | 'titration':
+                        ## runs default titration experiment
+                        ## Returns and the experiment runs while returning to prompt
+
+
+
+                        return
+
+                    case 'sweep':
+                        # do not return until sweep is completed and saved to file.
+
+                        alkalinty_module.sweep()
+
+
+                        return
+
 
 
     def do_stats(self, inp):
         """Outputs current configuration in table form (in an organized way) and run status. Allows user to ensure that the DAQ is configured correctly.
         """
+
+        global fieldnames
+
+        if inp=='':
+
+            ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
+
+            table_data = plot.readNewChunk ## Use a function to read 
+            table_data = table_data.plot.decode_chunk(table_data)
+
+            print(tabulate.tabulate(table_data, headers=fieldnames,tablefmt="pretty"))
+
+        elif inp=='--monitor':
+
+            ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
+
+            while True:
+
+                table_data = plot.readNewChunk ## Use a function to read 
+                table_data = table_data.plot.decode_chunk(table_data)
+
+                print(tabulate.tabulate(table_data, headers=fieldnames,tablefmt="pretty"))
+
+                sleep(5)
+
+                #### Add exception for keyinterupt? How to exit this gracefully.
+
+
 
         return
 
