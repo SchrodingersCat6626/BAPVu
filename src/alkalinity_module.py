@@ -127,6 +127,7 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
     new_fieldnames = fieldnames # creating a local copy of fieldnames
     new_fieldnames.append('electrolyzer_potential')
+    new_fieldnames.append('unit')
     #### New fields: systime, ch1, ch2, ch3, ch4...etc., electrolyzer_potential
     fileHandling.filecreate(new_filepath, new_fieldnames)
 
@@ -160,7 +161,7 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     ]
 
 
-    buffer = dict() # save buffer as dictionary. All data is written to the file once the sweep is completed.
+    buffer = [] # save buffer as dictionary. All data is written to the file once the sweep is completed.
     
     for serial_obj in ser:
         electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, min_voltage, electrolyzer_channel)
@@ -188,25 +189,20 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
             time_received = time()
             data.insert(0, str(time_received))
-            data.extend(str(electrolyzer_setpoint))
-            chunk = dict(zip(new_fieldnames, data))
-            buffer.update(chunk) # updating dictionary with new data 
+            data.extend([str(electrolyzer_setpoint),'mV'])
+
+            buffer.append(data)
 
             print('buffer updated...')
-            
-
-            
             counter = counter + 1
 
     for serial_obj in ser:
         serial_obj.close()
-    
-    with open(new_filepath, 'w') as f: 
-        w = csv.DictWriter(f, buffer.keys())
-        w.writeheader()
-        w.writerow(buffer)
-    
 
+    print(buffer)
+
+    communications.write_to_file(buffer,new_filepath)
+    
     print("Sweep complete.")
 
     return
