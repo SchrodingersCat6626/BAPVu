@@ -199,8 +199,6 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     for serial_obj in ser:
         serial_obj.close()
 
-    print(buffer)
-
     communications.write_to_file(buffer,new_filepath)
     
     print("Sweep complete.")
