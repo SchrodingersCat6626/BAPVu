@@ -42,17 +42,15 @@ def write_data(ser, args):
     # Basically this fix just sends a newline to the device which will run whatever command is saved
     # which, if it is leftover nonsense will error durring the 2 second sleep and won't affect the next command
     ser.write("\r\n".encode('ascii'))
-
     #####
-
-    sleep(2)
+    #sleep(2)
     # formating arguments
     args = ''.join([args+' \r\n'])
     #encoding arguments
     ser.write(args.encode('ascii'))
-    sleep(2)
+    #sleep(2)
     # clearing output buffer
-    ser.reset_output_buffer()
+    #ser.reset_output_buffer()
     return 
 
 def format_output(output):
@@ -84,7 +82,7 @@ def write_to_file(data, filepath):
 
 def read_data(ser):
     """
-    Reads data from device. Accepts a serial device as argument and returns a list which includes all the data for each channel with posix time on index 0.
+    Reads data from device. Accepts a serial device as argument and returns a list which includes all the data for each channel.
 
     """
     try:
@@ -169,15 +167,6 @@ def start_acquisition(filepath):
         for serial_obj in ser:
             new_data = read_data(serial_obj)
             data.extend(new_data)
-
-        #reads data and concatenates with current time
-        #data = [read_data(serial_obj) for serial_obj in ser]
-        # Format:
-        # ['7.261632 nA     2.6340 nA      -66.2 nA       Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
-
-        #if len(data) != daq_num:
-        #    print('Warning: Data not received for one or more DAQ devices. Discarding datapoint.')
-        #    continue
 
         time_received = time()
 
