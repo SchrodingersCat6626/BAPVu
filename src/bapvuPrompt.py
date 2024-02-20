@@ -51,11 +51,11 @@ class bapvuPrompt(Cmd):
         """
         return
     
-    def do_start(self,inp=None,inp2=None):
+    def do_start(self,inp):
 
         match inp:
 
-            case None:
+            case None | '':
 
                 if 'data_aq_process' in globals():
                     print('Data acquisition process already running!')
@@ -82,25 +82,35 @@ class bapvuPrompt(Cmd):
 
                 return
 
-            case '--alkalinity':
+            case '--titration':
+                ## runs default titration experiment
+                # ## Returns and the experiment runs while returning to prompt
+                print("placeholder")
+                
+                return
 
-                match inp2:
+            case 'sweep':
+                # do not return until sweep is completed and saved to file.
 
-                    case None | 'titration':
-                        ## runs default titration experiment
-                        ## Returns and the experiment runs while returning to prompt
+                daq_num = 1
+                print("The number of eDAQ's set to 1. (Only supported option)")
+
+                electrolyzer_channel = int(input("Which channel is the electrolyzer set up on (1,2,3, or 4): "))
+                min_voltage = float(input("Min voltage (mV): "))
+                max_voltage = float(input("Max voltage (mV): "))
+                step_size = float(input("Step size (mV): "))
+                time_per_step = float(input("Time per step (sec) (example:1200 is 20 mins): "))
+
+                print("Volage limit set to 2000 mV by default.")
 
 
-
-                        return
-
-                    case 'sweep':
-                        # do not return until sweep is completed and saved to file.
-
-                        alkalinty_module.sweep()
-
-
-                        return
+                alkalinity_module.voltage_sweep(filepath="sweep_test", electrolyzer_channel=electrolyzer_channel, 
+                fieldnames=fieldnames,
+                min_voltage=min_voltage, max_voltage=max_voltage,
+                volt_step_size=step_size, volt_limit=2000,
+                time_per_step=time_per_step, daq_num=daq_num)
+                
+                return
 
 
 

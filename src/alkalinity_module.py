@@ -212,13 +212,6 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     return
 
 
-voltage_sweep(filepath="sweep_test", electrolyzer_channel=4, 
-fieldnames=["systime","ch1","ch2","ch3","electrolyzer"],
-min_voltage=0, max_voltage=2000,
-volt_step_size=10, volt_limit=2000,
-time_per_step=1200, daq_num=1)
-
-
 def alkalinity_test():
 
     electrolyzer_channel = which_electrolyzer()
