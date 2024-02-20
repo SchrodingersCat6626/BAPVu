@@ -159,43 +159,39 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
     for serial_obj in ser:
         write_data(serial_obj, 'i 1')
         sleep(time_delay)
+    electrolyzer_setpoint = set_electrolyzer_potential(min_voltage)
     
-   electrolyzer_setpoint = set_electrolyzer_potential(min_voltage)
-
-    
-   while electrolyzer_setpoint <= max_voltage:
-
-    electrolyzer_setpoint = set_electrolyzer_potential(electrolyzer_setpoint+volt_step_size)
+    while electrolyzer_setpoint <= max_voltage:
+        
+        electrolyzer_setpoint = set_electrolyzer_potential(electrolyzer_setpoint+volt_step_size)
      
         #### track number of lines added to dictionary
-
-    counter = 0 # counts the number of lines appended to dictionary
-
-    while counter != datapoints_per_potential:
-        sleep(1)
-   
-        data = []
-        for serial_obj in ser:
-            new_data = read_data(serial_obj)
-            data.extend(new_data)
-   
-        if len(data) != expected_rowsize:
-            print('Warning: Unexpected row size. Row discarded.')
-            continue
-
-        time_received = time()
-        data.insert(0, str(time_received))
-        data.extend(electrolyzer_setpoint)
-
-        chunk = dict(zip(new_fieldnames, data))
-
-        buffer.update(chunk) # updating dictionary with new data 
         
-        for serial_obj in ser:
-   
-            serial_obj.close()
-
-        counter = counter + 1
+        counter = 0 # counts the number of lines appended to dictionary
+        
+        while counter != datapoints_per_potential:
+            
+            sleep(1)
+            data = []
+            
+            for serial_obj in ser:
+                new_data = read_data(serial_obj)
+                data.extend(new_data)
+                
+            if len(data) != expected_rowsize:
+                print('Warning: Unexpected row size. Row discarded.')
+                continue
+            
+            time_received = time()
+            data.insert(0, str(time_received))
+            data.extend(electrolyzer_setpoint)
+            chunk = dict(zip(new_fieldnames, data))
+            buffer.update(chunk) # updating dictionary with new data 
+            
+            for serial_obj in ser:
+                serial_obj.close()
+            
+            counter = counter + 1
 
     with open(new_filepath, 'w') as f: 
         w = csv.DictWriter(f, buffer.keys())
