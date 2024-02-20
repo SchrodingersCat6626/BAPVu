@@ -1,5 +1,6 @@
 import communications
 import csv
+import pygaps.modelling as pgm
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -28,9 +29,25 @@ def read_calibration_table():
 
     return
 
+def fit_to_langmuir():
+    ### https://pygaps.readthedocs.io/en/master/examples/modelling.html
+    isotherm = next(i for i in isotherms_H+_298k if i.material == 'CNT')
+    try:
+        model = pgm.model_iso(
+            isotherm,
+            model='DSLangmuir',
+            verbose=True,
+            optimization_params=dict(max_nfev=1e3),
+        )
+    except Exception as e:
+        print(e)
+
+
+
+
 
 def convert_curent_to_pH():
-    """ Takes in sensor current and converts to pH """
+    """ Takes in sensor current and converts to pH. Uses langmuir fit of sensor response for a given pH calibration """
 
 
 
