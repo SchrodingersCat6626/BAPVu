@@ -104,7 +104,7 @@ class bapvuPrompt(Cmd):
                 print("Volage limit set to 2000 mV by default.")
 
 
-                alkalinity_module.voltage_sweep(filepath="sweep_test", electrolyzer_channel=electrolyzer_channel, 
+                alkalinity_module.voltage_sweep(filepath=filepath, electrolyzer_channel=electrolyzer_channel, 
                 fieldnames=fieldnames,
                 min_voltage=min_voltage, max_voltage=max_voltage,
                 volt_step_size=step_size, volt_limit=2000,
