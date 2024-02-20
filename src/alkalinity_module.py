@@ -1,4 +1,5 @@
 import communications
+import csv
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -37,19 +38,25 @@ def convert_curent_to_pH():
     return
 
 
-def set_electrolyzer_potential():
+def set_electrolyzer_potential(serial_obj, potential, channel):
+    """ Potential in milivolt 
+    Note: setting potential will end data acquision.
+    Returns electrolyzer potential.
+    """
+
+    # beep to indicate that potential has been set 
+    communications.write_data(serial_obj, 'beep')
+
+    command = 'set channel {} Vex {}'.format(channel,potential)
+    communications.write_data(serial_obj, command)
 
 
+    response = read_data(serial_obj) # returns list.
+    #Ex. ['Channel' '1', 'Vex', '10.0', 'mV']
 
+    new_potential = float(response[3])
 
-    return
-
-
-def get_electrolyzer_potential():
-
-
-
-    return
+    return new_potential
 
 
 def convert_electrolyzer_current_to_alkalinity():
@@ -79,16 +86,19 @@ def compare_pH():
     return
 
 
-def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_channels, min_voltage, max_voltage, volt_step_size, current_linit, volt_limit, time_delay):
+def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_channels, min_voltage, max_voltage, volt_step_size, current_limit, volt_limit, time_per_step):
     """ Sweeps electrolyzer voltage and records voltage, current and time in a separate file
     This data can be combined with sensing data to examine the relationship between electrolyzer current/voltage and pH.
     The pH can be calibrated separately.
+    Time_per_step in seconds.
     """
 
     dev_channel_num = 4
     data_expected_per_channel = 2 # number or 'off' and a unit.
     data_len_per_device = dev_channel_num*data_expected_per_channel
     expected_rowsize = data_len_per_device*daq_num
+
+    datapoints_per_potential = 1*time_per_step # since each step is 1 second
 
 
     new_filepath = filepath+"_sweep" ### change filename to include sweep
@@ -105,7 +115,13 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
         print("Reading more than 3 eDAQ's is currently unsuported!")
 
         return
+    
+    if max_voltage > volt_limit:
 
+        print("Error: given voltage range exceeds device limit.")
+    
+    return
+    
     #creating a list of serial objects.
     ser = [
             serial.Serial(
@@ -123,139 +139,52 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
 
     buffer = dict() # save buffer as dictionary. All data is written to the file once the sweep is completed.
 
-
     for serial_obj in ser:
         write_data(serial_obj, 'i 1')
         sleep(time_delay)
     
-    for serial_obj in ser:
-        data = read_data(serial_obj)
-    
-    data.extend(get_electrolyzer_potential())
-
-    chunk = dict(zip(new_fieldnames, data))
-
-    def wait():
-
-        return 
-
-    def continue_reading_data():
-        
-        return
-
-    from threading import Thread
-
-
-        # Using threading, the sweep will read data whenever do_sweep is sleeping.
-        # Race condition!
-        # Need to block writing to data dict?
+   electrolyzer_setpoint = set_electrolyzer_potential(min_voltage)
 
     
-    def do_read_data():
+   while electrolyzer_setpoint <= max_voltage:
 
+    electrolyzer_setpoint = set_electrolyzer_potential(electrolyzer_setpoint+volt_step_size)
+     
+        #### track number of lines added to dictionary
 
+    counter = 0 # counts the number of lines appended to dictionary
 
+    while counter != datapoints_per_potential:
+        sleep(1)
+   
+        data = []
+        for serial_obj in ser:
+            new_data = read_data(serial_obj)
+            data.extend(new_data)
+   
+        if len(data) != expected_rowsize:
+            print('Warning: Unexpected row size. Row discarded.')
+            continue
 
+        time_received = time()
+        data.insert(0, str(time_received))
+        data.extend(electrolyzer_setpoint)
 
-        return
+        chunk = dict(zip(new_fieldnames, data))
+
+        buffer.update(chunk) # updating dictionary with new data 
+        
+        for serial_obj in ser:
+   
+            serial_obj.close()
+
+        counter = counter + 1
+
+    with open(new_filepath, 'w') as f: 
+        w = csv.DictWriter(f, buffer.keys())
+        w.writeheader()
+        w.writerow(buffer)
     
-    
-    lock = threading.lock()
-
-
-
-    data_reading_thread = Thread(x, args=())
-    wait_thread = Thread(time.sleep, args=(time_delay,))
-
-
-    def do_sweep(lock):
-
-
-        ######################## Set minimum voltage. No need to have started reading data yet #################################
-
-        if max_voltage > volt_limit:
-
-            print("Error: given voltage range exceeds device limit.")
-            
-            return
-            
-            
-        set_electrolyzer_potential(min_voltage)
-        
-        time.sleep(time_delay)
-        
-        electrolyzer_setpoint = min_voltage
-        
-        while get_electrolyzer_potential() != min_voltage: # waiting for electrolyzer setpoint to be changed to starting point
-
-            time.sleep(time_delay)
-
-
-        ######################################## Start reading/writing data ##############################################################
-
-        ######################################## Ramp voltage ############################################################################
-
-        ########################## Read data while we wait ~10 mins before incrementing voltage ##########################################
-            
-            
-        while electrolyzer_setpoint <= max_voltage:
-            
-            electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
-            
-            set_electrolyzer_potential(electrolyzer_setpoint)
-            
-            time.sleep(time_delay)
-            
-            while get_electrolyzer_potential() != electrolyzer_setpoint: # waiting for electrolyzer setpoint to be changed.
-                
-                time.sleep(time_delay)
-
-
-
-    communications.write_to_file(data,filepath=new_filepath)
-
-
-
-
-    while True:
-        sleep(wait_time)
-
-    data = []
-    for serial_obj in ser:
-        new_data = read_data(serial_obj)
-        data.extend(new_data)
-
-    #reads data and concatenates with current time
-    #data = [read_data(serial_obj) for serial_obj in ser]
-    # Format:
-    # ['7.261632 nA     2.6340 nA      -66.2 nA       Off -', '-118.544 nA     99.959 nA     52.587 nA     21.281 nA']
-
-    #if len(data) != daq_num:
-    #    print('Warning: Data not received for one or more DAQ devices. Discarding datapoint.')
-    #    continue
-
-    time_received = time()
-
-    if len(data) != expected_rowsize:
-        print('Warning: Unexpected row size. Row discarded.')
-        continue
-
-    data.insert(0, str(time_received))
-
-    buffer.append(data)
-
-    if len(buffer) == chunk_size:
-        write_to_file(buffer,filepath)
-        buffer = [] # clears buffer
-    else:
-        continue
-        
-
-    
-    for serial_obj in ser:
-
-        serial_obj.close()
-
 
     print("Sweep complete.")
 
