@@ -1,6 +1,10 @@
 import communications
 import csv
-import pygaps.modelling as pgm
+import fileHandling
+import serial
+from time import sleep
+from time import time
+#import pygaps.modelling as pgm
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -67,9 +71,11 @@ def set_electrolyzer_potential(serial_obj, potential, channel):
     command = 'set channel {} Vex {}'.format(channel,potential)
     communications.write_data(serial_obj, command)
 
+    response = []
 
-    response = read_data(serial_obj) # returns list.
-    #Ex. ['Channel' '1', 'Vex', '10.0', 'mV']
+    while len(response) != 5: # wait for respones of correct len
+        response = communications.read_data(serial_obj) # returns list.
+        #Ex. ['Channel' '1', 'Vex', '10.0', 'mV']
 
     new_potential = float(response[3])
 
@@ -103,13 +109,13 @@ def compare_pH():
     return
 
 
-def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_channels, min_voltage, max_voltage, volt_step_size, current_limit, volt_limit, time_per_step):
+def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step, daq_num):
     """ Sweeps electrolyzer voltage and records voltage, current and time in a separate file
     This data can be combined with sensing data to examine the relationship between electrolyzer current/voltage and pH.
     The pH can be calibrated separately.
     Time_per_step in seconds.
     """
-
+    daq_num=1
     dev_channel_num = 4
     data_expected_per_channel = 2 # number or 'off' and a unit.
     data_len_per_device = dev_channel_num*data_expected_per_channel
@@ -118,14 +124,14 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
     datapoints_per_potential = 1*time_per_step # since each step is 1 second
 
 
-    new_filepath = filepath+"_sweep" ### change filename to include sweep
+    new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
     new_fieldnames = fieldnames # creating a local copy of fieldnames
     new_fieldnames.append('electrolyzer_potential')
     #### New fields: systime, ch1, ch2, ch3, ch4...etc., electrolyzer_potential
     fileHandling.filecreate(new_filepath, new_fieldnames)
 
      # Reading a list of com ports
-    ports = get_com_ports()
+    ports = communications.get_com_ports()
 
     if len(ports) > 3:
         
@@ -136,8 +142,8 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
     if max_voltage > volt_limit:
 
         print("Error: given voltage range exceeds device limit.")
-    
-    return
+
+        return
     
     #creating a list of serial objects.
     ser = [
@@ -155,17 +161,15 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
 
 
     buffer = dict() # save buffer as dictionary. All data is written to the file once the sweep is completed.
-
+    
     for serial_obj in ser:
-        write_data(serial_obj, 'i 1')
-        sleep(time_delay)
-    electrolyzer_setpoint = set_electrolyzer_potential(min_voltage)
+        electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, min_voltage, electrolyzer_channel)
     
     while electrolyzer_setpoint <= max_voltage:
-        
-        electrolyzer_setpoint = set_electrolyzer_potential(electrolyzer_setpoint+volt_step_size)
-     
-        #### track number of lines added to dictionary
+
+        for serial_obj in ser:
+            electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint+volt_step_size), channel=electrolyzer_channel)
+            communications.write_data(serial_obj, 'i 1')
         
         counter = 0 # counts the number of lines appended to dictionary
         
@@ -175,24 +179,28 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
             data = []
             
             for serial_obj in ser:
-                new_data = read_data(serial_obj)
+                new_data = communications.read_data(serial_obj)
                 data.extend(new_data)
                 
             if len(data) != expected_rowsize:
                 print('Warning: Unexpected row size. Row discarded.')
                 continue
-            
+
             time_received = time()
             data.insert(0, str(time_received))
-            data.extend(electrolyzer_setpoint)
+            data.extend(str(electrolyzer_setpoint))
             chunk = dict(zip(new_fieldnames, data))
             buffer.update(chunk) # updating dictionary with new data 
+
+            print('buffer updated...')
             
-            for serial_obj in ser:
-                serial_obj.close()
+
             
             counter = counter + 1
 
+    for serial_obj in ser:
+        serial_obj.close()
+    
     with open(new_filepath, 'w') as f: 
         w = csv.DictWriter(f, buffer.keys())
         w.writeheader()
@@ -202,6 +210,13 @@ def voltage_sweep(data, filepath, fieldnames, electrolyzer_channel, sensor_chann
     print("Sweep complete.")
 
     return
+
+
+voltage_sweep(filepath="sweep_test", electrolyzer_channel=4, 
+fieldnames=["systime","ch1","ch2","ch3","electrolyzer"],
+min_voltage=0, max_voltage=2000,
+volt_step_size=10, volt_limit=2000,
+time_per_step=1200, daq_num=1)
 
 
 def alkalinity_test():

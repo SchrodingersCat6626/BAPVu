@@ -37,20 +37,21 @@ def write_data(ser, args):
     """
     #clearing input buffer
     ser.reset_input_buffer()
+    ser.reset_output_buffer()
 
     #### Weird hacky solution to a bug where if it seems that the device will sometimes not clear the number 10 from the last command... I should probably fix this ###
     # Basically this fix just sends a newline to the device which will run whatever command is saved
     # which, if it is leftover nonsense will error durring the 2 second sleep and won't affect the next command
     ser.write("\r\n".encode('ascii'))
     #####
-    #sleep(2)
+    sleep(0.2)
     # formating arguments
     args = ''.join([args+' \r\n'])
     #encoding arguments
     ser.write(args.encode('ascii'))
-    #sleep(2)
+    sleep(0.2)
     # clearing output buffer
-    #ser.reset_output_buffer()
+    
     return 
 
 def format_output(output):
