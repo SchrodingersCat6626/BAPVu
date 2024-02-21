@@ -166,10 +166,10 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     for serial_obj in ser:
         electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, min_voltage, electrolyzer_channel)
     
-    while electrolyzer_setpoint < max_voltage:
+    while electrolyzer_setpoint <= max_voltage:
 
         for serial_obj in ser:
-            electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint+volt_step_size), channel=electrolyzer_channel)
+            electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
             communications.write_data(serial_obj, 'i 1')
         
         counter = 0 # counts the number of lines appended to dictionary
@@ -200,6 +200,8 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
                 buffer = [] # clears buffer
             else:
                 continue
+        
+        electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
 
     for serial_obj in ser:
         serial_obj.close()
