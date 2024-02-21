@@ -59,26 +59,21 @@ def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material
     except Exception as e:
         print(e)
 
+
+    #ax = pgg.plot_iso(
+    # model,
+    # branch = 'all',
+    # color=False
+    # )
+    # #plt.show()
     return model
 
-#model = fit_to_langmuir()
-#print(log10(model.pressure_at(loading=163))*(-1)) # to interpolate pH
-
-#ax = pgg.plot_iso(
-#    model,
-#    branch = 'all',
-#    color=False
-#)
-#plt.show()
-
-
-def convert_curent_to_pH():
+def convert_curent_to_pH(sensor_current, isotherm):
     """ Takes in sensor current and converts to pH. Uses langmuir fit of sensor response for a given pH calibration """
 
+    pH = log10(isotherm.pressure_at(loading=sensor_current))*(-1) # to interpolate pH
 
-
-
-    return
+    return pH
 
 
 def set_electrolyzer_potential(serial_obj, potential, channel):
