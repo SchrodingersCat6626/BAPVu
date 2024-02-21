@@ -5,7 +5,12 @@ import serial
 from time import sleep
 from time import time
 from plotting import remove_every_nth
+import pygaps as pg
 import pygaps.modelling as pgm
+import pandas as pd
+import matplotlib.pyplot as plt
+import pygaps.graphing as pgg
+from math import log10
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -26,29 +31,45 @@ def which_sensors():
 
     return
 
-def read_calibration_table():
-    """ calibration should be stored in a file """
 
+def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material='SWCNT', temp=298):
+    """ Takes a file path for calibration data 
+    Returns a three site langmuir isotherm fit.
+    If it fails to fit to three site langmuir, it will try to guess the model to use for fitting.
+    pygaps documentation: https://pygaps.readthedocs.io/en/master/examples/modelling.html
+    """
 
-
-
-    return
-
-def fit_to_langmuir():
-    ### https://pygaps.readthedocs.io/en/master/examples/modelling.html
-    isotherm = next(i for i in isotherms_H+_298k if i.material == 'CNT')
+    df = pd.read_csv(file)
+    log_concentration = df['pH'].to_list()
+    concentration = [10**((-1)*pH) for pH in log_concentration] # convert to molar
+    sensor_current = df['sensor_current'].to_list()
+    
     try:
-        model = pgm.model_iso(
-            isotherm,
-            model='DSLangmuir',
-            verbose=True,
-            optimization_params=dict(max_nfev=1e3),
-        )
+        model = pg.ModelIsotherm(
+            material=sensor_material,
+            adsorbate=adsorbate,
+            temperature=298,
+            pressure=concentration,
+            loading=sensor_current,
+            model='TSLangmuir',
+            #optimization_params=dict(max_nfev=1e7),
+            verbose=True
+            )
+
     except Exception as e:
         print(e)
 
+    return model
 
+#model = fit_to_langmuir()
+#print(log10(model.pressure_at(loading=163))*(-1)) # to interpolate pH
 
+#ax = pgg.plot_iso(
+#    model,
+#    branch = 'all',
+#    color=False
+#)
+#plt.show()
 
 
 def convert_curent_to_pH():
