@@ -4,7 +4,8 @@ import fileHandling
 import serial
 from time import sleep
 from time import time
-#import pygaps.modelling as pgm
+from plotting import remove_every_nth
+import pygaps.modelling as pgm
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -80,6 +81,50 @@ def set_electrolyzer_potential(serial_obj, potential, channel):
     new_potential = float(response[3])
 
     return new_potential
+
+def get_channel_current(serial_obj, channel):
+
+    command = 'r'
+    communications.write_data(serial_obj, command)
+
+    response = []
+
+    while len(response) != 5: # wait for respones of correct len
+        response = communications.read_data(serial_obj) # returns list.
+        #Ex. ['Channel' '1', 'Vex', '10.0', 'mV']
+
+
+    response_cleaned = remove_every_nth(response,2,skip_first_element=False) # removes units
+    
+    current = response_cleaned[channel-1]
+
+
+    return current
+
+
+def autorange_current(serial_obj, old_range, channel, current_voltage, next_voltage):
+
+    available_ranges = [20, 200, 2000, 20000, 200000, 2000000] # nA
+    # documentation: https://www.edaq.com/wiki/EPU452_Manual
+
+    # get current for channel.
+    current = get_channel_current(serial_obj, channel)
+
+    # get potential 
+    # use ohm's law to calculate resistance
+    resistance = current_voltage/current
+    predicted_next_current = next_voltage/resistance
+    # make adjust range if next voltage is over 85% of max of range.
+    
+    if predicted_next_current > 0.85*old_range:
+        new_range = next(x for x in available_ranges if x > predicted_next_current)
+        # find to next value within that range.
+
+    command = 'set channel {} range {}'.format(channel,new_range)
+    communications.write_data(serial_obj, command)
+    
+    return new_range
+
 
 
 def convert_electrolyzer_current_to_alkalinity():
