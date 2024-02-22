@@ -11,6 +11,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import pygaps.graphing as pgg
 from math import log10
+from math import isclose
+from plotting import select
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -48,7 +50,7 @@ def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material
         model = pg.ModelIsotherm(
             material=sensor_material,
             adsorbate=adsorbate,
-            temperature=298,
+            temperature=temp,
             pressure=concentration,
             loading=sensor_current,
             model='TSLangmuir',
@@ -142,29 +144,15 @@ def autorange_current(serial_obj, old_range, channel, current_voltage, next_volt
     return new_range
 
 
+def check_sensor_drift():
+    """ Takes sensor data and returns sensor drift in nA/h """
+
+
+    return
+
+
 
 def convert_electrolyzer_current_to_alkalinity():
-
-
-    return
-
-
-
-def storeData():
-    """ Will write the alkalinity data in a separate file from the raw data 
-    key parameters: 
-    - pH according to each sensor.
-
-    """
-
-    return
-
-def compare_pH():
-    """ Compares current pH reading to last reading in file 
-    Returns true if pH is same (within tolerance)
-    Returns flase if pH is different (within tolerance)
-    Returns None type if file is empty
-    """
 
 
     return
@@ -222,7 +210,7 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     ]
 
 
-    buffer = [] # save buffer as dictionary. All data is written to the file once the sweep is completed.
+    buffer = []
     
     for serial_obj in ser:
         electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, min_voltage, electrolyzer_channel)
@@ -274,9 +262,6 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
 def alkalinity_test():
 
-    electrolyzer_channel = which_electrolyzer()
-    sensor_channels = which_sensors()
-
     """
     Read values using communication library.
     Take entire chunk.
@@ -284,6 +269,192 @@ def alkalinity_test():
     take mean for each channel for a given chunk.
     return this mean as 'data'
     """
+
+    # Sensor pH calibration
+    # Fits pH data to langmuir 
+    # Calibration must be manually performed
+    # Could be automated in the future
+    iso_model = fit_to_langmuir() # All args left as default, reads data from file in root of program.
+
+
+    ####################################################################################################
+
+    daq_num=1
+    dev_channel_num = 4
+    data_expected_per_channel = 2 # number or 'off' and a unit.
+    data_len_per_device = dev_channel_num*data_expected_per_channel
+    expected_rowsize = data_len_per_device*daq_num
+
+    datapoints_for_stabilization = 1*time_per_step # since each step is 1 second
+
+
+    new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
+    new_fieldnames = fieldnames # creating a local copy of fieldnames
+    new_fieldnames.append('electrolyzer_potential')
+    new_fieldnames.append('unit')
+    #### New fields: systime, ch1, ch2, ch3, ch4...etc., electrolyzer_potential
+    fileHandling.filecreate(new_filepath, new_fieldnames)
+
+     # Reading a list of com ports
+    ports = communications.get_com_ports()
+
+    if len(ports) > 3:
+        
+        print("Reading more than 3 eDAQ's is currently unsuported!")
+
+        return
+    
+    if max_voltage > volt_limit:
+
+        print("Error: given voltage range exceeds device limit.")
+
+        return
+    
+    #creating a list of serial objects.
+    ser = [
+            serial.Serial(
+            port = port,
+            timeout=None, #Waits indefinitely for data to be returned.
+            baudrate = 115200,
+            bytesize=8,
+            parity='N',
+            stopbits=1
+            )
+
+            for port in ports
+    ]
+
+
+    buffer = []
+
+    #########################################################################################################################
+
+    # Titrate a solution of known alkalinity to get initial total alkalinity
+
+    print("Please replace solution with a solution of standard alkalinity.")
+    print("Before proceeding, ensure that the solution has fully primed the tubing and the sensors have been conditionned.")
+
+    while True:
+        anwser = input("Are you ready to proceed(y/n): ")
+        if anwser == y:
+            break
+        elif anwser == n:
+            return (print("Cancelling..."))
+        else:
+            print("Please enter valid input.")
+
+    print("Measuring sensor drift.")
+    print("Please wait...")
+
+    # start data acquisition
+
+    for serial_obj in ser:
+        electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, 0, channel=electrolyzer_channel) # setting electrolyzer to 0mV
+        communications.write_data(serial_obj, 'i 1')
+
+    # Checking drift
+
+    #while counter != datapoints_for_stabilization:
+        
+    #    sleep(1)
+    #    data = []
+    #    
+    #    for serial_obj in ser:
+    #        new_data = communications.read_data(serial_obj)
+    #        data.extend(new_data)
+        
+    #    if len(data) != expected_rowsize:
+    #        print('Warning: Unexpected row size. Row discarded.')
+    #        continue
+
+    #    time_received = time()
+    #    data.insert(0, str(time_received))
+    #    data.extend([str(electrolyzer_setpoint),'mV'])
+
+    #    buffer.append(data)
+
+    #    counter = counter + 1
+
+    #    if len(buffer) == datapoints_per_potential: # write to file before each potential increment.
+    #        communications.write_to_file(buffer,new_filepath)
+    #        buffer = [] # clears buffer
+    #    else:
+    #        continue
+
+    #drift = check_sensor_drift(buffer)
+
+    #print("Drift (nA/h): {}".format(drift))
+    #input("Would you like to proceed? (y/n): ")
+
+    volt_step_size = 100
+    list_of_sensor_channels = [1,2,3]
+
+    while True:
+        
+        while not isclose(pH, 4.5, abs_tol=0.1): # if the pH is not within this tolerance, continue running loop
+        
+            if electrolyzer_setpoint >= max_voltage:
+                print("Error: Attempting to exceed rated voltage.")
+                return
+
+            for serial_obj in ser:
+                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
+                communications.write_data(serial_obj, 'i 1')
+            
+            counter = 0 # counts the number of lines appended to dictionary
+            
+            while counter != datapoints_per_potential:
+                
+                sleep(1)
+                data = []
+                
+                for serial_obj in ser:
+                    new_data = communications.read_data(serial_obj)
+                    data.extend(new_data)
+                    
+                if len(data) != expected_rowsize:
+                    print('Warning: Unexpected row size. Row discarded.')
+                    continue
+
+                time_received = time()
+                data.insert(0, str(time_received))
+                data.extend([str(electrolyzer_setpoint),'mV'])
+
+                buffer.append(data)
+
+                counter = counter + 1
+
+                if len(buffer) == datapoints_per_potential: 
+                    # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
+                    sensor_means = []
+                    for channel in sensor_channels:
+                        sensor_data = select(buffer, index=channel-1, dtype=float) # need to modify to specify the specific eDAQ.
+                        sensor_mean = sum(sensor_data)/len(sensor_data)
+                        sensor_means.append(sensor_mean)
+
+                    communications.write_to_file(buffer,new_filepath) # write to file before incrementing potential and returning to outerloop.
+                    buffer = [] # clears buffer
+                else:
+                    continue
+
+            volt_step_size = volt_step_size*(1.01**(counter*(-1))) # using an exponential decay to decrease step size
+
+            if pH > 4.5:
+                electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
+            elif pH < 4.5:
+                electrolyzer_setpoint = electrolyzer_setpoint-volt_step_size
+            else:
+                continue # I guess if this condition is met then we are at 4.5?
+
+        for serial_obj in ser:
+            serial_obj.close()
+
+
+
+
+
+
+
     
     data = None
 
