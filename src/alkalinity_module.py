@@ -132,6 +132,17 @@ def check_sensor_drift():
 
     return
 
+def conv_current_to_protons(current,flow_rate):
+    """ Function which takes in electrolyzer current and flow_rate (L/min) as args. Returns change in proton concentration. """
+
+    coulomb_conv_fact = 6.24150975*(10**18) # to electron per coulomb
+    avogadro_num = 6.022141527*(10**23)
+
+    flow_rate = flow_rate/60 # convert L/min to L/sec
+    
+    conc_protons = ((current*coulomb_conv_fact)/(flow_rate*avogadro_num)) # ((C/s)(-e/C)((atoms)/e))/((L/s)(atoms/mol)) = moles/L = M
+
+    return conc_protons ## In molars
 
 
 def convert_electrolyzer_current_to_alkalinity():
@@ -253,7 +264,7 @@ def titrate(data, electrolyzer_channel, volt_step_size_initial=100, target_pH=4.
 
         if electrolyzer_setpoint >= max_voltage:
             print("Error: Attempting to exceed rated voltage.")
-                return
+            return
 
             for serial_obj in ser:
                 electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
