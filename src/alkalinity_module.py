@@ -16,24 +16,6 @@ from plotting import select
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
-def which_electrolyzer():
-    """  Reads a config file which has the electrolyzer channel number written on line one """
-
-
-
-
-    return
-
-def which_sensors():
-    """  Reads a config file which has the sensor channel number written on line 2 for first eDAQ, line 3 for second eDAQ....etc 
-    configuration should be in order of com value. Ex. COM3 will come before COM4 in the file...etc.
-     """
-    
-
-
-    return
-
-
 def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material='SWCNT', temp=298):
     """ Takes a file path for calibration data 
     Returns a three site langmuir isotherm fit.
