@@ -109,23 +109,6 @@ def start_acquisition(filepath):
         print("Reading more than 3 eDAQ's is currently unsuported!") ## since the plotting program only supports 3 eDAQ's currently.
 
         return
-        
-    #    print("Warning, reading from more than 4 eDAQ's at a time is not recommended...")
-
-    #    while True:
-
-     #       anwser = input("Would you like to proceed(y/n): ")
-     #       
-     #       if anwser == y:
-
-     #           break
-
-      #      elif anwser == n:
-
-       #         return (print("Cancelling..."))
-        #    else:
-
-         #       print("Please enter valid input.")
 
     """
     I should also limit the number of eDAQ's to 3-4 per session. To run more one can always run the program twice.... 
