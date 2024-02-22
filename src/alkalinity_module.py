@@ -242,6 +242,82 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     return
 
 
+def titrate(data, electrolyzer_channel, target_pH=4.5, tol=0.1):
+    
+    while not isclose(mean_pH_of_all_sens, target_pH, abs_tol=tol): # if the pH is not within this tolerance, continue running loop
+
+        if electrolyzer_setpoint >= max_voltage:
+            print("Error: Attempting to exceed rated voltage.")
+                return
+
+            for serial_obj in ser:
+                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
+                communications.write_data(serial_obj, 'i 1')
+
+            counter = 0 # counts the number of lines appended to dictionary
+
+            while counter != datapoints_per_potential:
+
+                sleep(1)
+                data = []
+
+                for serial_obj in ser:
+                    new_data = communications.read_data(serial_obj)
+                    data.extend(new_data)
+
+                if len(data) != expected_rowsize:
+                    print('Warning: Unexpected row size. Row discarded.')
+                    continue
+
+                time_received = time()
+                data.insert(0, str(time_received))
+                data.extend([str(electrolyzer_setpoint),'mV'])
+
+                buffer.append(data)
+
+                counter = counter + 1
+
+                if len(buffer) == datapoints_per_potential: 
+                    # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
+                    pHs = []
+                    for idx, channel in enumerate(sensor_channels):
+                        sensor_current_data = select(buffer, index=idx, dtype=float) # need to modify to specify the specific eDAQ.
+                        sensor_current_mean = sum(sensor_data)/len(sensor_data)
+                        # interpolating pH
+                        """
+                        Source: https://pygaps.readthedocs.io/en/master/manual/isotherm.html
+                        "Interpolation can be dangerous. pyGAPS does not implicitly allow interpolation outside the bounds of the data, 
+                        although the user can force it to by passing an interp_fill parameter to the interpolating functions, 
+                        usually if the isotherm is known to have reached the maximum adsorption plateau. 
+                        Otherwise, the user is responsible for making sure the data is fit for purpose."
+                        """
+                        pH = convert_curent_to_pH(sensor_current_mean, isomodels[idx])
+                        pHs.append(pH)
+
+                    # Update latest current reading
+                    electrolyzer_current_data = select(buffer,index=electrolyzer_channel, dtype=float)
+                    electrolyzer_current_mean = sum(electrolyzer_current_data)/len(electrolyzer_current_data)
+
+                    communications.write_to_file(buffer,new_filepath) # write to file before incrementing potential and returning to outerloop.
+                    buffer = [] # clears buffer
+                else:
+                    continue
+
+            volt_step_size = volt_step_size*(1.01**(counter*(-1))) # using an exponential decay to decrease step size
+
+            mean_pH_of_all_sens = sum(pHs)/len(pHs) # ensuring all sensors are in agreement
+
+            if mean_pH_of_all_sens > target_pH:
+                electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
+            elif mean_pH_of_all_sens < target_pH:
+                electrolyzer_setpoint = electrolyzer_setpoint-volt_step_size
+            else:
+                continue # I guess if this condition is met then we are at 4.5?
+
+        return electrolyzer_current_mean
+
+
+
 def alkalinity_test():
 
     """
@@ -250,13 +326,18 @@ def alkalinity_test():
     Chunksize can be set in alkalinity mode.
     take mean for each channel for a given chunk.
     return this mean as 'data'
+
+    To do:
+        I should really be storing titration data as a class.
+
     """
 
     # Sensor pH calibration
     # Fits pH data to langmuir 
     # Calibration must be manually performed
     # Could be automated in the future
-    iso_model = fit_to_langmuir() # All args left as default, reads data from file in root of program.
+
+
 
 
     ####################################################################################################
@@ -370,66 +451,21 @@ def alkalinity_test():
 
     volt_step_size = 100
     list_of_sensor_channels = [1,2,3]
+    # Storing the calibration data for each sensor
+    """
+    To do: Need to update file format to handle multiple sensors
+    The code below will not work in its current form.
+    """
+    isomodels = [fit_to_langmuir(channel) for channel in list_of_sensor_channels] # All args left as default, reads data from file in root of program.
 
     while True:
-        
-        while not isclose(pH, 4.5, abs_tol=0.1): # if the pH is not within this tolerance, continue running loop
-        
-            if electrolyzer_setpoint >= max_voltage:
-                print("Error: Attempting to exceed rated voltage.")
-                return
 
-            for serial_obj in ser:
-                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
-                communications.write_data(serial_obj, 'i 1')
-            
-            counter = 0 # counts the number of lines appended to dictionary
-            
-            while counter != datapoints_per_potential:
-                
-                sleep(1)
-                data = []
-                
-                for serial_obj in ser:
-                    new_data = communications.read_data(serial_obj)
-                    data.extend(new_data)
-                    
-                if len(data) != expected_rowsize:
-                    print('Warning: Unexpected row size. Row discarded.')
-                    continue
+        titrate()
 
-                time_received = time()
-                data.insert(0, str(time_received))
-                data.extend([str(electrolyzer_setpoint),'mV'])
 
-                buffer.append(data)
 
-                counter = counter + 1
-
-                if len(buffer) == datapoints_per_potential: 
-                    # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
-                    sensor_means = []
-                    for channel in sensor_channels:
-                        sensor_data = select(buffer, index=channel-1, dtype=float) # need to modify to specify the specific eDAQ.
-                        sensor_mean = sum(sensor_data)/len(sensor_data)
-                        sensor_means.append(sensor_mean)
-
-                    communications.write_to_file(buffer,new_filepath) # write to file before incrementing potential and returning to outerloop.
-                    buffer = [] # clears buffer
-                else:
-                    continue
-
-            volt_step_size = volt_step_size*(1.01**(counter*(-1))) # using an exponential decay to decrease step size
-
-            if pH > 4.5:
-                electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
-            elif pH < 4.5:
-                electrolyzer_setpoint = electrolyzer_setpoint-volt_step_size
-            else:
-                continue # I guess if this condition is met then we are at 4.5?
-
-        for serial_obj in ser:
-            serial_obj.close()
+    for serial_obj in ser:
+        serial_obj.close()
 
 
 
