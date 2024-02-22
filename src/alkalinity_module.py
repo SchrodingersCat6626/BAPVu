@@ -242,7 +242,12 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     return
 
 
-def titrate(data, electrolyzer_channel, target_pH=4.5, tol=0.1):
+def titrate(data, electrolyzer_channel, volt_step_size_initial=100, target_pH=4.5, tol=0.1):
+    """
+
+    """
+
+    volt_step_size = volt_step_size_initial
     
     while not isclose(mean_pH_of_all_sens, target_pH, abs_tol=tol): # if the pH is not within this tolerance, continue running loop
 
@@ -256,7 +261,7 @@ def titrate(data, electrolyzer_channel, target_pH=4.5, tol=0.1):
 
             counter = 0 # counts the number of lines appended to dictionary
 
-            while counter != datapoints_per_potential:
+            while counter != datapoints_per_potential: ### change to datapoints for stabilization
 
                 sleep(1)
                 data = []
@@ -458,44 +463,43 @@ def alkalinity_test():
     """
     isomodels = [fit_to_langmuir(channel) for channel in list_of_sensor_channels] # All args left as default, reads data from file in root of program.
 
+    init_electrolyzer_current = titrate()
+
     while True:
 
-        titrate()
+        new_electrolyzer_current = titrate()
 
+        diff = init_electrolyzer_current
 
+        while counter != datapoints_for_stabilization:
+           
+            sleep(1)
+            data = []
+            
+            for serial_obj in ser:
+                new_data = communications.read_data(serial_obj)
+                data.extend(new_data)
+           
+            if len(data) != expected_rowsize:
+                print('Warning: Unexpected row size. Row discarded.')
+                continue
+        
+            time_received = time()
+            data.insert(0, str(time_received))
+            data.extend([str(electrolyzer_setpoint),'mV'])
+        
+            buffer.append(data)
+        
+            counter = counter + 1
+        
+            if len(buffer) == datapoints_per_potential: # write to file before each potential increment.
+                communications.write_to_file(buffer,new_filepath)
+                buffer = [] # clears buffer
+            else:
+                continue
 
     for serial_obj in ser:
         serial_obj.close()
 
 
-
-
-
-
-
-    
-    data = None
-
-    new_pH = convert_curent_to_pH(data, sensor_channels) # returns a list of pH's for all three sensors on each eDAQ
-
-    if compare_pH(file, new_pH, tolerance) is True:
-
-        storeData()
-
-    elif compare_pH(file, new_pH, tolerance) is False:
-        
-        while compare_pH(file, new_pH, tolerance) is False:
-
-            set_electrolyzer_potential()
-
-            sleep(time_delay) # should be a delay based on the size of the channel.
-
-        # recalculate alkalinity
-
-
-    else: ## if None type is returned due to empty file
-
-        storeData()
-
-
-    return 0 # if successfully completed. Set to return 1 if error since it shouldn't block the main process if it fails for some reason.
+        return 0 # if successfully completed. Set to return 1 if error since it shouldn't block the main process if it fails for some reason.
