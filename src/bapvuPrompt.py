@@ -119,28 +119,30 @@ class bapvuPrompt(Cmd):
         """
 
         global fieldnames
-
-        if inp=='':
-
-            ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
-
-            table_data = plot.readNewChunk ## Use a function to read 
-            table_data = table_data.plot.decode_chunk(table_data)
-
-            print(tabulate.tabulate(table_data, headers=fieldnames,tablefmt="pretty"))
-
-        elif inp=='--monitor':
-
-            ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
-
-            while True:
-
+        request_time = time.time()
+        
+        match inp:
+            
+            case '':
+                ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
                 table_data = plot.readNewChunk ## Use a function to read 
                 table_data = table_data.plot.decode_chunk(table_data)
 
                 print(tabulate.tabulate(table_data, headers=fieldnames,tablefmt="pretty"))
+                return
+            
+            case '--monitor':
 
-                sleep(5)
+                ################# Maybe these shouldn't be in the plotting library if they are used here like this #################
+
+                while True:
+
+                    table_data = plot.readNewChunk ## Use a function to read 
+                    table_data = table_data.plot.decode_chunk(table_data)
+
+                    print(tabulate.tabulate(table_data, headers=fieldnames,tablefmt="pretty"))
+
+                    sleep(chunk_size)
 
                 #### Add exception for keyinterupt? How to exit this gracefully.
 
