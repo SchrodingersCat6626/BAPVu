@@ -192,7 +192,7 @@ def initPlot(filename):
 
 
 
-def plot(filename,chunk_size):
+def plot(filename,chunk_size=30):
     # Given that I know that the number of channels can be 4 or 8 or 12 or 16.
     # Since I have a limit of 4 daqs, have just set 4 different if statements
     # for 4 different animations
