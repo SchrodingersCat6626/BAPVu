@@ -13,6 +13,7 @@ import pygaps.graphing as pgg
 from math import log10
 from math import isclose
 from plotting import select
+from scipy.stats import linregress
 
 """ Groups of functions used when alkalinity mode is active in BaPvu """
 
@@ -144,6 +145,10 @@ def conv_current_to_protons(current,flow_rate):
 
     return conc_protons ## In molars
 
+def find_closest_index(lst, target):
+
+    return min(range(len(lst)), key=lambda i: abs(lst[i] - target))
+
 
 def convert_electrolyzer_current_to_alkalinity():
 
@@ -151,11 +156,11 @@ def convert_electrolyzer_current_to_alkalinity():
     return
 
 
-def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step, daq_num):
+def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step, daq_num, return_calibration=False):
     """ Sweeps electrolyzer voltage and records voltage, current and time in a separate file
     This data can be combined with sensing data to examine the relationship between electrolyzer current/voltage and pH.
     The pH can be calibrated separately.
-    Time_per_step in seconds.
+    Time_per_step in seconds. If return calibration is set to true, the data is not saved to file. Rather, it returns the electrolyzer calibration.
     """
     daq_num=1
     dev_channel_num = 4
@@ -165,13 +170,13 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
     datapoints_per_potential = 1*time_per_step # since each step is 1 second
 
-
-    new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
-    new_fieldnames = fieldnames # creating a local copy of fieldnames
-    new_fieldnames.append('electrolyzer_potential')
-    new_fieldnames.append('unit')
-    #### New fields: systime, ch1, ch2, ch3, ch4...etc., electrolyzer_potential
-    fileHandling.filecreate(new_filepath, new_fieldnames)
+    if return_calibration is False:
+        new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
+        new_fieldnames = fieldnames # creating a local copy of fieldnames
+        new_fieldnames.append('electrolyzer_potential')
+        new_fieldnames.append('unit')
+        #### New fields: systime, ch1, ch2, ch3, ch4...etc., electrolyzer_potential
+        fileHandling.filecreate(new_filepath, new_fieldnames)
 
      # Reading a list of com ports
     ports = communications.get_com_ports()
@@ -237,7 +242,9 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
             counter = counter + 1
 
-            if len(buffer) == datapoints_per_potential: # write to file before each potential increment.
+            if return_calibration is True: 
+                continue
+            elif len(buffer) == datapoints_per_potential and return_calibration is False: # write to file before each potential increment.
                 communications.write_to_file(buffer,new_filepath)
                 buffer = [] # clears buffer
             else:
@@ -247,16 +254,24 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
     for serial_obj in ser:
         serial_obj.close()
+
+    if return_calibration is True:
+        """ Assuming that relationship between voltage and current is linear after 1.3V (about the max redox pot. for water electrolysis) """
+        start_idx = find_closest_index(select(buffer, -1), 1.3) # The voltage channel in the last column
+        x, y = select(buffer,0), select(buffer, electrolyzer_channel-1)
+        regress = linregress(x=x[start_idx:None], y=y[start_idx:None])
+        return regress
     
     print("Sweep complete.")
 
     return
 
+from simple_pid import PID
 
-def titrate(data, electrolyzer_channel, volt_step_size_initial=100, target_pH=4.5, tol=0.1):
+def titrate(data, electrolyzer_channel, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1):
+    """ Voltage in mV.
     """
-
-    """
+    ### Set it to titrate to a current
 
     volt_step_size = volt_step_size_initial
     
@@ -318,6 +333,9 @@ def titrate(data, electrolyzer_channel, volt_step_size_initial=100, target_pH=4.
                     buffer = [] # clears buffer
                 else:
                     continue
+
+
+                #### If the pH has changed only a small amount. Change decay rate dynamically.
 
             volt_step_size = volt_step_size*(1.01**(counter*(-1))) # using an exponential decay to decrease step size
 
