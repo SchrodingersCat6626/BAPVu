@@ -179,7 +179,7 @@ def predict_voltage(targetCurrent, LinregressResult):
     current and voltage are approximately linear beyond the ~1.3V max redox potential for water electrolysis. Regression can be obtained from
     a quick voltage sweep (funct. 'voltage_sweep') with the return calibration set to True.
     """
-    voltage = (targetCurrent-LinregressResult.yintercept)/LinregressResult.slope
+    voltage = (targetCurrent-LinregressResult.intercept)/LinregressResult.slope
 
     return voltage
 
@@ -301,6 +301,7 @@ def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_vo
         start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
         x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = (electrolyzer_channel-1)+1, dtype='float') # +1 to compensate for systime col
         regress = linregress(x=x, y=y)
+        serial_obj.close()
         return regress
     
     print("Sweep complete.")
@@ -504,11 +505,23 @@ electrolyzer_channel=3,min_voltage=1300,max_voltage=1800, volt_step_size=50,
 time_per_step=10, volt_limit=2000,
 return_calibration=True) # since return calibration is True, this will return a regression.
 
-print(electrolyzer_response)
-print(predict_voltage(1000, LinregressResult=electrolyzer_response))
+ports = communications.get_com_ports()
+ser = [
+        serial.Serial(
+        port = port,
+        timeout=None, #Waits indefinitely for data to be returned.
+        baudrate = 115200,
+        bytesize=8,
+        parity='N',
+        stopbits=1)
+       
+       for port in ports
+      ]
 
-#results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state={'current':2794, 'voltage':1800}, current_setpoint=1000, LinregressResult=electrolyzer_response, max_voltage=2000)
-#print(results)
+serial_obj = ser[1] # electrolyzer on second eDAQ
+
+results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state={'current':2794, 'voltage':1800}, current_setpoint=1000, LinregressResult=electrolyzer_response, max_voltage=2000)
+print(results)
 #########################################
 
 
