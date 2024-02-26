@@ -16,7 +16,11 @@ from plotting import select
 from scipy.stats import linregress
 from simple_pid import PID
 
-""" Groups of functions used when alkalinity mode is active in BaPvu """
+""" Groups of functions used when alkalinity mode is active in BaPvu 
+
+To do: remove regeneration of object appearing multiple times. For example, the list of serial objects. Some variables can be declared as global.
+
+"""
 
 def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material='SWCNT', temp=298):
     """ Takes a file path for calibration data 
@@ -135,7 +139,7 @@ def check_sensor_drift():
     return
 
 def conv_current_to_protons(current,flow_rate):
-    """ Function which takes in electrolyzer current and flow_rate (L/min) as args. Returns change in proton concentration. """
+    """ Function which takes in electrolyzer current in amps and flow_rate (L/min) as args. Returns change in proton concentration. """
 
     coulomb_conv_fact = 6.24150975*(10**18) # to electron per coulomb
     avogadro_num = 6.022141527*(10**23)
@@ -145,6 +149,19 @@ def conv_current_to_protons(current,flow_rate):
     conc_protons = ((current*coulomb_conv_fact)/(flow_rate*avogadro_num)) # ((C/s)(-e/C)((atoms)/e))/((L/s)(atoms/mol)) = moles/L = M
 
     return conc_protons ## In molars
+
+def conv_protons_to_current(protons,flow_rate):
+    """ Function takes in a change in proton concentration at the sensor and flow rate. Solves for change in current to generate change in proton concentration. """
+
+    coulomb_conv_fact = 6.24150975*(10**18) # to electron per coulomb
+    avogadro_num = 6.022141527*(10**23)
+
+    flow_rate = flow_rate/60 # convert L/min to L/sec
+    
+    current = ((conc_protons*(flow_rate*avogadro_num)))/coulomb_conv_fact # Ampere = (C/s) = (moles/L*((L/s)(atoms/mol)))/((-e/C)((atoms)/e))
+    
+    return current*10**(-9) ## nano ampere
+
 
 def find_closest_index(lst, target):
 
@@ -280,16 +297,15 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
 
 
-def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1, set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=None):
+def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1, stabilization_time = 1200, # 1 datapoint = 1 second 
+set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=None):
     """ Performs a titration. 'starting_volt' arg represents the voltage to start the titration with (mV).
     If 'set_current_first', is set to 'True', the electrolyser current will, first, be adjusted to the setpoint.
     Note: In 'set_current_first' mode, data will not be saved while setting current. Therefore, if the setpoint cannot be reached,
     the program will hang. This mode should be used when setpoint has been computed.
     """
 
-
     # The electrolyzer eDAQ needs to ba in a sep. obj than sensors!
-
 
     ### Set it to titrate to a current
 
@@ -299,28 +315,26 @@ def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_s
     pid = PID(setpoint=electrolyzer_current_setpoint)
     new_current = electrolyzer_current_setpoint # setting initial value
 
-    if set_current_first is True:
-        while not isclose(electrolyzer_current, electrolyzer_current_setpoint, abs_tol=10): #10 nA of tolerance
-            new_current = pid(new_current) # computes new current adjustment
-            new_voltage = predict_voltage(new_current+electrolyzer_current_setpoint, LinregressResult)
-            for serial_obj in ser:
-                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
-                communications.write_data(serial_obj, 'i 1')
+    mean_pH_of_all_sens = 0 # setting a starting value of 0
+    # If the set_current_first mode is set, this value will not be updated.
 
-
-    while not isclose(mean_pH_of_all_sens, target_pH, abs_tol=tol): # if the pH is not within this tolerance, continue running loop
+    while not isclose(
+        mean_pH_of_all_sens, target_pH, abs_tol=tol
+        ) or not isclose(
+            electrolyzer_current, electrolyzer_current_setpoint, abs_tol=10): 
+        # if the pH is not within this tolerance, continue running loop
 
         if electrolyzer_setpoint >= max_voltage:
             print("Error: Attempting to exceed rated voltage.")
             return
 
             for serial_obj in ser:
-                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
+                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel-1)
                 communications.write_data(serial_obj, 'i 1')
 
             counter = 0 # counts the number of lines appended to dictionary
 
-            while counter != datapoints_per_potential: ### change to datapoints for stabilization
+            while counter != stabilization_time or set_current_first is True: ### change to datapoints for stabilization
 
                 sleep(1)
                 data = []
@@ -341,7 +355,13 @@ def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_s
 
                 counter = counter + 1
 
-                if len(buffer) == datapoints_per_potential: 
+
+                if set_current_first is True:
+                    new_current = buffer[-1][electrolyzer_channel-1] # getting new_current of electrolyser #10 nA of tolerance
+                    new_current = pid(new_current) # computes new current adjustment
+                    electrolyzer_setpoint = predict_voltage(new_current+electrolyzer_current_setpoint, LinregressResult) # in mV
+
+                elif len(buffer) == stabilization_time and set_current_first is False: 
                     # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
                     pHs = []
                     for idx, channel in enumerate(sensor_channels):
@@ -359,7 +379,7 @@ def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_s
                         pHs.append(pH)
 
                     # Update latest current reading
-                    electrolyzer_current_data = select(buffer,index=electrolyzer_channel, dtype=float)
+                    electrolyzer_current_data = select(buffer,index=electrolyzer_channel-1, dtype=float)
                     electrolyzer_current_mean = sum(electrolyzer_current_data)/len(electrolyzer_current_data)
 
                     communications.write_to_file(buffer,new_filepath) # write to file before incrementing potential and returning to outerloop.
@@ -374,7 +394,9 @@ def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_s
 
             mean_pH_of_all_sens = sum(pHs)/len(pHs) # ensuring all sensors are in agreement
 
-            if mean_pH_of_all_sens > target_pH:
+            if set_current_first is True: # If this is True, the electrolyzer current will be set by PID loop
+                continue
+            elif mean_pH_of_all_sens > target_pH:
                 electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
             elif mean_pH_of_all_sens < target_pH:
                 electrolyzer_setpoint = electrolyzer_setpoint-volt_step_size
@@ -384,6 +406,66 @@ def titrate(filepath, data, electrolyzer_channel, starting_volt=800, volt_step_s
             results = {'current': electrolyzer_current_mean, 'voltage': electrolyzer_setpoint}
 
         return results
+
+
+
+def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=10, stabilization_time = 10): # 1 datapoint = 1 second
+    """ 
+    """
+    current = electrolyzer_state['current']
+    starting_volt=electrolyzer_state['voltage']
+    voltage_setpoint = starting_volt
+    pid = PID(setpoint=current_setpoint)
+
+    delta_current = pid(current) # computes new current adjustment
+
+    buffer = []
+
+    while not isclose(current, current_setpoint, abs_tol=tol): 
+
+        if voltage >= max_voltage:
+            print("Error: Attempting to exceed rated voltage.")
+            return
+
+        delta_current = pid(current) # computes new current adjustment
+        voltage_setpoint = predict_voltage(current+delta_current, LinregressResult) # in mV
+
+        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel-1)
+        communications.write_data(serial_obj, 'i 1')
+
+        counter = 0 # counts the number of lines appended to dictionary
+
+        while counter != stabilization_time: ### change to datapoints for stabilization
+
+            sleep(1)
+            data = []
+
+            new_data = communications.read_data(serial_obj)
+            data.extend(new_data)
+
+            if len(data) != expected_rowsize:
+                print('Warning: Unexpected row size. Row discarded.')
+                continue
+
+            #time_received = time()
+            #data.insert(0, str(time_received))
+            #data.extend([str(electrolyzer_setpoint),'mV'])
+
+            buffer.append(data)
+
+            counter = counter + 1
+
+            current = buffer[-1][electrolyzer_channel-1] # getting new_current of electrolyser #10 nA of tolerance
+
+            if counter==stabilization_time:
+                buffer = [] # clears buffer
+
+
+                ### change to update dict object, rather than create a new one.
+
+    results = {'current': current, 'voltage': voltage}
+
+    return results
 
 
 
@@ -408,7 +490,7 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
     datapoints_for_stabilization = 1*time_per_step # since each step is 1 second
 
 
-    new_filepath = filepath+"_sweep.csv" ### change filename to include sweep
+    new_filepath = filepath+"_titration.csv" ### change filename to include sweep
     new_fieldnames = fieldnames # creating a local copy of fieldnames
     new_fieldnames.append('electrolyzer_potential')
     new_fieldnames.append('unit')
@@ -493,15 +575,11 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
     print("Performing initial pH titration with electrolyser.")
     print("Titrating to pH 4.5.")
     print("Please wait...")
-    init_electrolyzer_current = titrate() # returns a dict containing electrolyzer current and voltage. Voltage can be used as starting param in next titration
+    electrolyzer_state = titrate() # returns a dict containing electrolyzer current and voltage. Voltage can be used as starting param in next titration
     print("Initial titration complete!")
-    print("Voltage setpoint found to be {}mV, and current to be {}nA".format(init_electrolyzer_current['voltage'], init_electrolyzer_current['current']))
+    print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
 
     while True:
-
-        new_electrolyzer_current = titrate()
-
-        diff = init_electrolyzer_current
 
         while counter != datapoints_for_stabilization:
             #### I need to measure pH in this loop and check if it changed.
@@ -526,9 +604,37 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
         
             counter = counter + 1
         
-            if len(buffer) == datapoints_per_potential: # write to file before each potential increment.
+            if len(buffer) == datapoints_for_stabilization: # write to file before each potential increment.
+                # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
+                for idx, channel in enumerate(sensor_channels):
+                    sensor_current_data = select(buffer, index=idx, dtype=float) # need to modify to specify the specific eDAQ.
+                    sensor_current_mean = sum(sensor_data)/len(sensor_data)
+                    # interpolating pH
+                    """
+                    Source: https://pygaps.readthedocs.io/en/master/manual/isotherm.html
+                    "Interpolation can be dangerous. pyGAPS does not implicitly allow interpolation outside the bounds of the data, 
+                    although the user can force it to by passing an interp_fill parameter to the interpolating functions, 
+                    usually if the isotherm is known to have reached the maximum adsorption plateau. 
+                    Otherwise, the user is responsible for making sure the data is fit for purpose."
+                    """
+                    pH = convert_curent_to_pH(sensor_current_mean, isomodels[idx])
+
                 communications.write_to_file(buffer,new_filepath)
                 buffer = [] # clears buffer
+                
+                if pH is not isclose(pH, 4.5, tol=tol):
+
+                    # calculate difference in protons
+                    # calculate how much current is needed to return to pH 4.5
+                    delta_current = conv_protons_to_current((10**(-pH))-(10**(-4.5)))
+                    new_current_target = electrolyzer_state['current'] + delta_current
+    
+                    electrolyzer_state = titrate2(serial_obj=electrolyzer_daq,electrolyzer_channel=electrolyzer_channel, 
+                    electrolyzer_state=electrolyzer_state, current_setpoint=new_current_target,LinregressResult=electrolyzer_response,
+                    stabilization_time=10, tol=10)
+                    print("Initial titration complete!")
+                    print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
+
             else:
                 continue
 
