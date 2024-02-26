@@ -71,14 +71,15 @@ def convert_curent_to_pH(sensor_current, isotherm):
     return pH
 
 
-def set_electrolyzer_potential(serial_obj, potential, channel):
+def set_electrolyzer_potential(serial_obj, potential, channel, beep=True):
     """ Potential in milivolt 
     Note: setting potential will end data acquision.
     Returns electrolyzer potential.
     """
 
-    # beep to indicate that potential has been set 
-    communications.write_data(serial_obj, 'beep')
+    # beep to indicate that potential has been set
+    if beep is True:
+        communications.write_data(serial_obj, 'beep')
 
     command = 'set channel {} Vex {}'.format(channel,potential)
     communications.write_data(serial_obj, command)
@@ -334,7 +335,7 @@ set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=No
     while not isclose(
         mean_pH_of_all_sens, target_pH, abs_tol=tol
         ) or not isclose(
-            electrolyzer_current, electrolyzer_current_setpoint, abs_tol=10): 
+            electrolyzer_current, electrolyzer_current_setpoint, abs_tol=5): 
         # if the pH is not within this tolerance, continue running loop
 
         if electrolyzer_setpoint >= max_voltage:
@@ -422,13 +423,22 @@ set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=No
 
 
 
-def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=10, stabilization_time = 10, max_voltage=2000): # 1 datapoint = 1 second
+def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=2, stabilization_time = 5, max_voltage=2000): # 1 datapoint = 1 second
     """ 
     """
+    # Temp fix for debugging
+    daq_num=1
+    dev_channel_num = 4
+    data_expected_per_channel = 2 # number or 'off' and a unit.
+    data_len_per_device = dev_channel_num*data_expected_per_channel
+    expected_rowsize = data_len_per_device*daq_num
+    ###############################
+
+    expected_rowsize = data_len_per_device*daq_num
     current = electrolyzer_state['current']
     starting_volt=electrolyzer_state['voltage']
     voltage_setpoint = starting_volt
-    pid = PID(setpoint=current_setpoint)
+    pid = PID(1.05, 0.1, 0.05, setpoint=current_setpoint)
 
     delta_current = pid(current) # computes new current adjustment
 
@@ -443,7 +453,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
         delta_current = pid(current) # computes new current adjustment
         voltage_setpoint = predict_voltage(current+delta_current, LinregressResult) # in mV
 
-        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel)
+        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel, beep=False)
         communications.write_data(serial_obj, 'i 1')
 
         counter = 0 # counts the number of lines appended to dictionary
@@ -451,6 +461,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
         while counter != stabilization_time: ### change to datapoints for stabilization
 
             sleep(1)
+
             data = []
 
             new_data = communications.read_data(serial_obj)
@@ -464,11 +475,14 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
             #data.insert(0, str(time_received))
             #data.extend([str(electrolyzer_setpoint),'mV'])
 
+            data = remove_every_nth(data,2,skip_first_element=False)
             buffer.append(data)
 
             counter = counter + 1
 
-            current = buffer[-1][electrolyzer_channel-1] # getting new_current of electrolyser #10 nA of tolerance
+            current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
+
+            print(current)
 
             if counter==stabilization_time:
                 buffer = [] # clears buffer
@@ -501,9 +515,12 @@ ser = [
 serial_obj = ser[1] # electrolyzer on second eDAQ
 
 electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath=None, fieldnames=['systime','ch1','units', 'ch2','units', 'ch3','units', 'ch4','units'], 
-electrolyzer_channel=3,min_voltage=1300,max_voltage=1800, volt_step_size=50,
-time_per_step=10, volt_limit=2000,
+electrolyzer_channel=3,min_voltage=1200,max_voltage=1800, volt_step_size=50,
+time_per_step=5, volt_limit=2000,
 return_calibration=True) # since return calibration is True, this will return a regression.
+
+for serial_obj in ser:
+    serial_obj.close()
 
 ports = communications.get_com_ports()
 ser = [
@@ -522,9 +539,19 @@ serial_obj = ser[1] # electrolyzer on second eDAQ
 
 results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state={'current':2794, 'voltage':1800}, current_setpoint=1000, LinregressResult=electrolyzer_response, max_voltage=2000)
 print(results)
+while True:
+    results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=2000, LinregressResult=electrolyzer_response, max_voltage=2000)
+    print(results)
+    results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=3000, LinregressResult=electrolyzer_response, max_voltage=2000)
+    print(results)
+    results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=500, LinregressResult=electrolyzer_response, max_voltage=2000)
+    print(results)
+    results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=5000, LinregressResult=electrolyzer_response, max_voltage=2000)
+    print(results)
+    results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=1000, LinregressResult=electrolyzer_response, max_voltage=2000)
+    print(results)
+
 #########################################
-
-
 
 
 
