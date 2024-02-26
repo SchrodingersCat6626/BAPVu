@@ -1,3 +1,4 @@
+import importlib.util
 import communications
 import csv
 import fileHandling
@@ -15,6 +16,7 @@ from math import isclose
 from plotting import select
 from scipy.stats import linregress
 from simple_pid import PID
+from time import sleep
 
 """ Groups of functions used when alkalinity mode is active in BaPvu 
 
@@ -185,17 +187,20 @@ def convert_electrolyzer_current_to_alkalinity():
     return
 
 
-def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step, daq_num, return_calibration=False):
+def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step, return_calibration=False):
     """ Sweeps electrolyzer voltage and records voltage, current and time in a separate file
     This data can be combined with sensing data to examine the relationship between electrolyzer current/voltage and pH.
     The pH can be calibrated separately.
-    Time_per_step in seconds. If return calibration is set to true, the data is not saved to file. Rather, it returns the electrolyzer calibration.
+    Time_per_step in seconds. If return calibration is set to true, the data is not saved to file. Rather, it returns the electrolyzer calibration. 
+    Requires serial_obj containing the electrolyzer.
     """
-    daq_num=1
+
+    # daq num represents the index of eDAQ where the electrolyser is found.
+
     dev_channel_num = 4
     data_expected_per_channel = 2 # number or 'off' and a unit.
     data_len_per_device = dev_channel_num*data_expected_per_channel
-    expected_rowsize = data_len_per_device*daq_num
+    expected_rowsize = data_len_per_device # only accepts one serial obj.
 
     datapoints_per_potential = 1*time_per_step # since each step is 1 second
 
@@ -223,18 +228,19 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
         return
     
     #creating a list of serial objects.
-    ser = [
-            serial.Serial(
-            port = port,
-            timeout=None, #Waits indefinitely for data to be returned.
-            baudrate = 115200,
-            bytesize=8,
-            parity='N',
-            stopbits=1
-            )
+    #ser = [
+    #        serial.Serial(
+    #        port = port,
+    #        timeout=None, #Waits indefinitely for data to be returned.
+    #        baudrate = 115200,
+    #        bytesize=8,
+    #        parity='N',
+    #        stopbits=1
+    #        )
 
-            for port in ports
-    ]
+    #        for port in ports
+    #]
+    #ser = [serial_obj] # temp fix
 
 
     buffer = []
@@ -244,9 +250,8 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
     
     while electrolyzer_setpoint <= max_voltage:
 
-        for serial_obj in ser:
-            electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
-            communications.write_data(serial_obj, 'i 1')
+        electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
+        communications.write_data(serial_obj, 'i 1')
         
         counter = 0 # counts the number of lines appended to dictionary
         
@@ -255,9 +260,8 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
             sleep(1)
             data = []
             
-            for serial_obj in ser:
-                new_data = communications.read_data(serial_obj)
-                data.extend(new_data)
+            new_data = communications.read_data(serial_obj)
+            data.extend(new_data)
                 
             if len(data) != expected_rowsize:
                 print('Warning: Unexpected row size. Row discarded.')
@@ -271,7 +275,7 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
 
             counter = counter + 1
 
-            if return_calibration is True: 
+            if return_calibration is True:
                 continue
             elif len(buffer) == datapoints_per_potential and return_calibration is False: # write to file before each potential increment.
                 communications.write_to_file(buffer,new_filepath)
@@ -281,13 +285,18 @@ def voltage_sweep(filepath, fieldnames, electrolyzer_channel, min_voltage, max_v
         
         electrolyzer_setpoint = electrolyzer_setpoint+volt_step_size
 
-    for serial_obj in ser:
-        serial_obj.close()
+    serial_obj.close()
 
     if return_calibration is True:
         """ Assuming that relationship between voltage and current is linear after 1.3V (about the max redox pot. for water electrolysis) """
-        start_idx = find_closest_index(select(buffer, -1), 1.3) # The voltage channel in the last column
-        x, y = select(buffer,0), select(buffer, electrolyzer_channel-1)
+        new_buff = [[]]
+        for line in buffer: 
+            new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
+            new_buff.append(new_line)
+        buffer = new_buff
+        buffer.pop(0) # remove first element which is blank list.
+        start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
+        x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = (electrolyzer_channel-1)+1, dtype='float') # +1 to compensate for systime col
         regress = linregress(x=x[start_idx:None], y=y[start_idx:None])
         return regress
     
@@ -329,7 +338,7 @@ set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=No
             return
 
             for serial_obj in ser:
-                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel-1)
+                electrolyzer_setpoint = set_electrolyzer_potential(serial_obj, potential=(electrolyzer_setpoint), channel=electrolyzer_channel)
                 communications.write_data(serial_obj, 'i 1')
 
             counter = 0 # counts the number of lines appended to dictionary
@@ -430,7 +439,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
         delta_current = pid(current) # computes new current adjustment
         voltage_setpoint = predict_voltage(current+delta_current, LinregressResult) # in mV
 
-        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel-1)
+        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel)
         communications.write_data(serial_obj, 'i 1')
 
         counter = 0 # counts the number of lines appended to dictionary
@@ -466,6 +475,41 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
     results = {'current': current, 'voltage': voltage}
 
     return results
+
+
+
+
+
+################# Testing ###############
+ports = communications.get_com_ports()
+ser = [
+        serial.Serial(
+        port = port,
+        timeout=None, #Waits indefinitely for data to be returned.
+        baudrate = 115200,
+        bytesize=8,
+        parity='N',
+        stopbits=1)
+       
+       for port in ports
+      ]
+
+serial_obj = ser[1] # electrolyzer on second eDAQ
+
+electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath=None, fieldnames=['systime','ch1','units', 'ch2','units', 'ch3','units', 'ch4','units'], 
+electrolyzer_channel=3,min_voltage=100,max_voltage=200, volt_step_size=25,
+time_per_step=5, volt_limit=1000,
+return_calibration=True) # since return calibration is True, this will return a regression.
+
+print(electrolyzer_response)
+
+#########################################
+
+
+
+
+
+
 
 
 
