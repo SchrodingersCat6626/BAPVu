@@ -20,7 +20,10 @@ from time import sleep
 
 """ Groups of functions used when alkalinity mode is active in BaPvu 
 
-To do: remove regeneration of object appearing multiple times. For example, the list of serial objects. Some variables can be declared as global.
+To do: 
+- remove regeneration of object appearing multiple times. For example, the list of serial objects. Some variables can be declared as global.
+- Implement autoranging
+- Clean code up.
 
 """
 
@@ -297,7 +300,7 @@ def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_vo
         buffer.pop(0) # remove first element which is blank list.
         start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
         x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = (electrolyzer_channel-1)+1, dtype='float') # +1 to compensate for systime col
-        regress = linregress(x=x[start_idx:None], y=y[start_idx:None])
+        regress = linregress(x=x, y=y)
         return regress
     
     print("Sweep complete.")
@@ -418,7 +421,7 @@ set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=No
 
 
 
-def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=10, stabilization_time = 10): # 1 datapoint = 1 second
+def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=10, stabilization_time = 10, max_voltage=2000): # 1 datapoint = 1 second
     """ 
     """
     current = electrolyzer_state['current']
@@ -432,7 +435,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
 
     while not isclose(current, current_setpoint, abs_tol=tol): 
 
-        if voltage >= max_voltage:
+        if voltage_setpoint > max_voltage:
             print("Error: Attempting to exceed rated voltage.")
             return
 
@@ -497,17 +500,16 @@ ser = [
 serial_obj = ser[1] # electrolyzer on second eDAQ
 
 electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath=None, fieldnames=['systime','ch1','units', 'ch2','units', 'ch3','units', 'ch4','units'], 
-electrolyzer_channel=3,min_voltage=100,max_voltage=200, volt_step_size=25,
-time_per_step=5, volt_limit=1000,
+electrolyzer_channel=3,min_voltage=1300,max_voltage=1800, volt_step_size=50,
+time_per_step=10, volt_limit=2000,
 return_calibration=True) # since return calibration is True, this will return a regression.
 
 print(electrolyzer_response)
+print(predict_voltage(1000, LinregressResult=electrolyzer_response))
 
+#results = titrate2(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state={'current':2794, 'voltage':1800}, current_setpoint=1000, LinregressResult=electrolyzer_response, max_voltage=2000)
+#print(results)
 #########################################
-
-
-
-
 
 
 
