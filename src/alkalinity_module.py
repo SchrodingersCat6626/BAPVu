@@ -27,14 +27,17 @@ To do:
 
 """
 
-def fit_to_langmuir(file='calibration_data.csv', adsorbate='H+', sensor_material='SWCNT', temp=298):
+def fit_to_langmuir(channel, file='calibration_data.csv', adsorbate='H+', sensor_material='SWCNT', temp=298):
     """ Takes a file path for calibration data 
     Returns a three site langmuir isotherm fit.
     If it fails to fit to three site langmuir, it will try to guess the model to use for fitting.
     pygaps documentation: https://pygaps.readthedocs.io/en/master/examples/modelling.html
     """
 
+    channel_index = channel-1 
+
     df = pd.read_csv(file)
+    df = df.iloc[:, channel_index]
     log_concentration = df['pH'].to_list()
     concentration = [10**((-1)*pH) for pH in log_concentration] # convert to molar
     sensor_current = df['sensor_current'].to_list()
@@ -186,7 +189,9 @@ def predict_voltage(targetCurrent, LinregressResult):
 
 
 def convert_electrolyzer_current_to_alkalinity():
-
+    """ The change in concentration of protons is approximately equal to the change in alkalinity.
+    This function takes the change in proton concentration in the form of change in pH
+    """
 
     return
 
@@ -293,12 +298,11 @@ def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_vo
 
     if return_calibration is True:
         """ Assuming that relationship between voltage and current is linear after 1.3V (about the max redox pot. for water electrolysis) """
-        new_buff = [[]]
+        new_buff = []
         for line in buffer: 
             new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
             new_buff.append(new_line)
         buffer = new_buff
-        buffer.pop(0) # remove first element which is blank list.
         start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
         x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = (electrolyzer_channel-1)+1, dtype='float') # +1 to compensate for systime col
         regress = linregress(x=x, y=y)
@@ -553,9 +557,11 @@ while True:
 
 #########################################
 
+alkalinity_test(filepath = 'test', electrolyzer_channel=3, electrolyser_daq=2, datapoints_for_stabilization=1200, # seconds
+list_of_sensor_channels = [1,2,4])
 
 
-def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1,2,3],  starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1):
+def alkalinity_test(filepath, electrolyzer_channel, electrolyser_daq, list_of_sensor_channels, datapoints_for_stabilization=1200, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1):
 
     """
     Read values using communication library.
@@ -612,6 +618,8 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
             for port in ports
     ]
 
+    serial_obj_electrolyzer = ser[electrolyser_daq-1] # selecting serial object containing electrolysis
+
 
     buffer = []
 
@@ -648,22 +656,12 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
     # More accurate than using ohms law.
     print("Calibrating electrolyzer current response.")
     print("Please wait...")
-    electrolyzer_response = voltage_sweep(
-        filepath=None, fieldnames=new_fieldnames, 
-        electrolyzer_channel=electrolyzer_channel,
-        min_voltage=1300,max_voltage=1800,
-        volt_step_size=1000,time_per_step=60, 
-        return_calibration=True # since return calibration is True, this will return a regression.
-    )
+    electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath=None, fieldnames=['systime','ch1','units', 'ch2','units', 'ch3','units', 'ch4','units'], # temporary fix
+    electrolyzer_channel=3,min_voltage=1200,max_voltage=1800, volt_step_size=50,
+    time_per_step=5, volt_limit=2000,
+    return_calibration=True) # since return calibration is True, this will return a regression.
     print("Electrolyzer calibration complete!")
     ##############################################################################################
-
-    print("Performing initial pH titration with electrolyser.")
-    print("Titrating to pH 4.5.")
-    print("Please wait...")
-    electrolyzer_state = titrate() # returns a dict containing electrolyzer current and voltage. Voltage can be used as starting param in next titration
-    print("Initial titration complete!")
-    print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
 
     while True:
 
@@ -691,9 +689,16 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
             counter = counter + 1
         
             if len(buffer) == datapoints_for_stabilization: # write to file before each potential increment.
+
+                new_buff = []
+                for line in buffer: 
+                    new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
+                    new_buff.append(new_line)
+
+                pHs = []
                 # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
                 for idx, channel in enumerate(sensor_channels):
-                    sensor_current_data = select(buffer, index=idx, dtype=float) # need to modify to specify the specific eDAQ.
+                    sensor_current_data = select(new_buffer, index=channel, dtype='float') # Since there is a time column, it is not required ot substract 1 to get index.
                     sensor_current_mean = sum(sensor_data)/len(sensor_data)
                     # interpolating pH
                     """
@@ -704,21 +709,29 @@ def alkalinity_test(filepath, electrolyzer_channel, list_of_sensor_channels = [1
                     Otherwise, the user is responsible for making sure the data is fit for purpose."
                     """
                     pH = convert_curent_to_pH(sensor_current_mean, isomodels[idx])
+                    pHs.append(pH)
+
+
+                mean_pH = sum(pHs)/len(pHs) # computing the mean of sensor pH for acidic side.
 
                 communications.write_to_file(buffer,new_filepath)
+
                 buffer = [] # clears buffer
                 
-                if pH is not isclose(pH, 4.5, tol=tol):
+                if mean_pH is not isclose(pH, 4.5, tol=tol):
 
                     # calculate difference in protons
                     # calculate how much current is needed to return to pH 4.5
                     delta_current = conv_protons_to_current((10**(-pH))-(10**(-4.5)))
                     new_current_target = electrolyzer_state['current'] + delta_current
+                    
+                    print("Performing initial pH titration with electrolyser.")
+                    print("Titrating to pH 4.5.")
+                    print("Please wait...")
     
-                    electrolyzer_state = titrate2(serial_obj=electrolyzer_daq,electrolyzer_channel=electrolyzer_channel, 
-                    electrolyzer_state=electrolyzer_state, current_setpoint=new_current_target,LinregressResult=electrolyzer_response,
-                    stabilization_time=10, tol=10)
-                    print("Initial titration complete!")
+                    electrolyzer_state = titrate2(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, electrolyzer_state=electrolyzer_state,
+                     current_setpoint=new_current_target, LinregressResult=electrolyzer_response, max_voltage=2000)
+                    print("Titration complete!")
                     print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
 
             else:
