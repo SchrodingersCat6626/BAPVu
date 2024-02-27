@@ -95,7 +95,7 @@ def set_electrolyzer_potential(serial_obj, potential, channel, beep=True, close_
         #Ex. ['Channel' '1', 'Vex', '10.0', 'mV']
 
     new_potential = float(response[3])
-    
+
     if close_port is True:
         serial_obj.close()
 
@@ -103,6 +103,7 @@ def set_electrolyzer_potential(serial_obj, potential, channel, beep=True, close_
 
 def get_channel_current(serial_obj, channel, close_port=False):
 
+    serial_obj.reset_output_buffer() # discarding data in output buffer to get most recent reading.
     command = 'r'
     communications.write_data(serial_obj, command)
 
@@ -155,10 +156,12 @@ def check_sensor_drift():
     return
 
 def conv_current_to_protons(current,flow_rate):
-    """ Function which takes in electrolyzer current in amps and flow_rate (L/min) as args. Returns change in proton concentration. """
+    """ Function which takes in electrolyzer current in amps and flow_rate (ml/min) as args. Returns change in proton concentration. """
 
     coulomb_conv_fact = 6.24150975*(10**18) # to electron per coulomb
     avogadro_num = 6.022141527*(10**23)
+
+    flow_rate = flow_rate/1000 # to convert ml/min to L/min
 
     flow_rate = flow_rate/60 # convert L/min to L/sec
     
@@ -172,11 +175,14 @@ def conv_protons_to_current(protons,flow_rate):
     coulomb_conv_fact = 6.24150975*(10**18) # to electron per coulomb
     avogadro_num = 6.022141527*(10**23)
 
+    flow_rate = flow_rate/1000 # to convert ml/min to L/min
+
     flow_rate = flow_rate/60 # convert L/min to L/sec
     
-    current = ((conc_protons*(flow_rate*avogadro_num)))/coulomb_conv_fact # Ampere = (C/s) = (moles/L*((L/s)(atoms/mol)))/((-e/C)((atoms)/e))
-    
-    return current*10**(-9) ## nano ampere
+    current = (protons*flow_rate*avogadro_num)/coulomb_conv_fact # Ampere = (C/s) = (moles/L*((L/s)(atoms/mol)))/((-e/C)((atoms)/e))
+    current_nA = current*10**(9) ## nano ampere
+
+    return current_nA
 
 
 def find_closest_index(lst, target):
@@ -435,7 +441,8 @@ set_current_first=False, electrolyzer_current_setpoint=None, LinregressResult=No
 
 
 
-def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, buffer=None, tol=2, stabilization_time = 5, max_voltage=2000, close_port=False): # 1 datapoint = 1 second
+def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult, 
+buffer=None, tol=1, stabilization_time = 5, max_voltage=2000, close_port=False): # 1 datapoint = 1 second
     """ 
     """
     # Temp fix for debugging
@@ -449,6 +456,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
     expected_rowsize = data_len_per_device*daq_num
     current = electrolyzer_state['current']
     starting_volt=electrolyzer_state['voltage']
+
     voltage_setpoint = starting_volt
     pid = PID(1.05, 0.1, 0.05, setpoint=current_setpoint)
 
@@ -465,7 +473,7 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
         delta_current = pid(current) # computes new current adjustment
         voltage_setpoint = predict_voltage(current+delta_current, LinregressResult) # in mV
 
-        voltage = set_electrolyzer_potential(serial_obj, potential=(voltage_setpoint), channel=electrolyzer_channel, beep=False)
+        voltage = set_electrolyzer_potential(serial_obj, potential=voltage_setpoint, channel=electrolyzer_channel, beep=False, close_port=False)
         communications.write_data(serial_obj, 'i 1')
 
         counter = 0 # counts the number of lines appended to dictionary
@@ -502,12 +510,20 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
 
                 ### change to update dict object, rather than create a new one.
 
-    results = {'current': current, 'voltage': voltage}
-    
+
     if close_port is True:
         serial_obj.close()
 
-    return results
+    try:
+
+        new_electrolyzer_state = {'current':current,'voltage':voltage}
+        
+        return new_electrolyzer_state
+
+    except UnboundLocalError:
+
+        print('Current is already equal to current setpoint!')
+        return electrolyzer_state
 
 
 
@@ -571,7 +587,8 @@ def titrate2(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpo
 
 
 
-def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq, list_of_sensor_channels, datapoints_for_stabilization=1200, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1, max_voltage=2000):
+def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq, list_of_sensor_channels, flow_rate, plot_calibration=False,
+datapoints_for_stabilization=1200, starting_volt=800, volt_step_size_initial=100, target_pH=4.5, tol=0.1, max_voltage=2000):
 
     """
     Read values using communication library.
@@ -660,7 +677,7 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
 
     # Storing the calibration data for each sensor
 
-    isomodels = [fit_to_langmuir(channel) for channel in list_of_sensor_channels] # All args left as default, reads data from file in root of program.
+    isomodels = [fit_to_langmuir(channel, plot=plot_calibration) for channel in list_of_sensor_channels] # All args left as default, reads data from file in root of program.
 
     ################################ Calibrate electrode current response ########################
     # This will be used to recompute the new voltage target to achieve a current setpoint.
@@ -672,6 +689,7 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
     time_per_step=5, volt_limit=2000,
     return_calibration=True, close_port=False) # since return calibration is True, this will return a regression.
     print("Electrolyzer calibration complete!")
+    input('Discharge electrolyzer by shorting. Once complete press enter.')
     ##############################################################################################
 
 
@@ -679,10 +697,10 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
     voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, channel=electrolyzer_channel, beep=True, close_port=False)
     print('Success!')
 
-    current = get_channel_current(serial_obj_electrolyzer, electrolyzer_channel)
+    current = float(get_channel_current(serial_obj_electrolyzer, electrolyzer_channel))
     print('Waiting for current from residual voltage to subside.')
-    #sleep(120)
-    electrolyzer_state = {'voltage': voltage, 'current': current}
+    sleep(30)
+    electrolyzer_state = {'voltage':voltage, 'current':current}
     print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
     print('Initial electrolyser state recorded.')
 
@@ -731,10 +749,15 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
                     new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
                     new_buff.append(new_line)
 
+                    latest_electrolyzer_current = float(buffer[-1][electrolyzer_channel+(dev_channel_num*(electrolyser_daq-1))]) # to compute the idx number regardless of edaq num
+
+                electrolyzer_state.update({'current':latest_electrolyzer_current})
+
                 pHs = []
                 # calculating current mean pH for the last number of 'datapoint_per_potential' before clearing buffer and writing to file
                 for idx, channel in enumerate(list_of_sensor_channels): # cannot deal with more than one eDAQ
                     sensor_current_data = select(new_buff, index=channel, dtype='float') # Since there is a time column, it is not required ot substract 1 to get index.
+                    sensor_current_data = sensor_current_data[-120:] # selecting the last 2 mins of data
                     sensor_current_mean = sum(sensor_current_data)/len(sensor_current_data)
                     # interpolating pH
                     """
@@ -761,15 +784,19 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
 
                     # calculate difference in protons
                     # calculate how much current is needed to return to pH 4.5
-                    delta_current = conv_protons_to_current((10**(-pH))-(10**(-4.5)))
+                    delta_current = conv_protons_to_current((10**(-4.5))-(10**(-mean_pH)), flow_rate)
+                    print('delta current is {}'.format(delta_current))
                     new_current_target = electrolyzer_state['current'] + delta_current
+
+                    print('New electrolyser current target is: {}nA'.format(new_current_target))
                     
                     print("Performing initial pH titration with electrolyser.")
                     print("Titrating to pH 4.5.")
                     print("Please wait...")
-    
+
                     electrolyzer_state = titrate2(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, electrolyzer_state=electrolyzer_state,
                      current_setpoint=new_current_target, LinregressResult=electrolyzer_response, max_voltage=2000)
+
                     print("Titration complete!")
                     print("Voltage setpoint found to be {}mV, and current to be {}nA".format(electrolyzer_state['voltage'], electrolyzer_state['current']))
 
@@ -785,6 +812,8 @@ def alkalinity_test(filepath, fieldnames, electrolyzer_channel, electrolyser_daq
 alkalinity_test(filepath = 'test', 
 fieldnames=['systime', 'ch1', 'unit', 'ch2', 'unit', 'ch3', 'unit', 'ch4', 'unit', 'ch5', 'unit', 'ch6', 'unit', 'ch7', 'unit', 'ch8', 'unit'], 
 electrolyzer_channel=3, electrolyser_daq=2, # the daqs are enumerated in order of COM numbers. For example if I have 'COM3' and 'COM4', 'COM3' will be DAQ 1, 'COM4' will be DAQ 2..etc.
-datapoints_for_stabilization=20, # seconds
-list_of_sensor_channels = [1,2,4] # List of channel numbers on the eDAQ containing sensors (H+ side)
+datapoints_for_stabilization=1800, # seconds
+list_of_sensor_channels = [1,2,4], # List of channel numbers on the eDAQ containing sensors (H+ side). On the first eDAq (COM3)
+plot_calibration=False, # to show plots from pH sensor calibrations.
+flow_rate = 0.03 #ml/min
 )
