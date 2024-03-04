@@ -2,3 +2,4 @@ BAPVu.code-workspace
 calibration_data.csv
 t_alk.txt
 test2_do_not_overwrite.csv
+*.csv
