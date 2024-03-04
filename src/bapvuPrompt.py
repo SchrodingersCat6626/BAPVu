@@ -82,10 +82,40 @@ class bapvuPrompt(Cmd):
 
                 return
 
-            case '--titration':
+            case 'titrate':
                 ## runs default titration experiment
                 # ## Returns and the experiment runs while returning to prompt
-                print("placeholder")
+
+                flowrate = input('What is flowrate (ml/min)?: ')
+
+                edaqs = communications.get_com_ports()
+
+                print('Available eDAQs:')
+                for edaq, idx in enumerate(edaqs):
+                    print('{}) {}'.format(idx+1,edaq))
+
+                print('Note: Sensors for sensing titration endpoint must be on the first eDAQ device (for now).')
+
+                electrolyzer_daq = input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : ')
+                electrolyze_channel = input('Which channel is the electrolyser attached to? : ')
+
+                #low_ph_sensor_daq = input('Which eDAQ contains sensors to monitor pH at equivalence point? : ')
+
+                list_of_sensor_channel = [int(item) for item in input("Input a list of sensor channels \
+                 of pH sensors used to monitor pH at equivalence point (separated by spaces): ").split()]
+
+                datapoints_for_stabilization = input('How many datapoints do you want for stabilization between adjusting \
+                    electrolyser voltage (1 datapoint/sec, ex. 3600 = 1hr): ')
+                
+                alkalinity_test(filepath = filepath, fieldnames=fieldnames, electrolyzer_channel=electrolyze_channel, 
+                electrolyser_daq=electrolyzer_daq, # the daqs are enumerated in order of COM numbers. 
+                #For example if I have 'COM3' and 'COM4', 'COM3' will be DAQ 1, 'COM4' will be DAQ 2..etc.
+                datapoints_for_stabilization=datapoints_for_stabilization, # seconds
+                list_of_sensor_channels = list_of_sensor_channel, # List of channel numbers on the eDAQ containing sensors (H+ side). On the first eDAq (COM3)
+                plot_calibration=False, # to show plots from pH sensor calibrations.
+                flow_rate = flowrate, #ml/min
+                skip_initial_stabilization=False
+                )
                 
                 return
 
