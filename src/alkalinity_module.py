@@ -864,17 +864,3 @@ def titration_test():
         print(results)
 
 
-
-
-# 200ppm
-#input('200ppm')
-#voltage_sweep2("voltage_Sweep_200_ppm_nacl", fieldnames=['systime', 'ch1', 'unit', 'ch2', 'unit', 'ch3', 'unit', 'ch4', 'unit', 'ch5', 'unit', 'ch6', 'unit', 'ch7', 'unit', 'ch8', 'unit'],
-#electrolyzer_channel=3, electrolyser_daq=2,daq_num=2,min_voltage=500,max_voltage=1500,volt_step_size=250,time_per_step=1800,close_port=True, volt_limit=2000)
-# 1000ppm
-#input('1000ppm')
-#voltage_sweep2("voltage_Sweep_1000_ppm_nacl", fieldnames=['systime', 'ch1', 'unit', 'ch2', 'unit', 'ch3', 'unit', 'ch4', 'unit', 'ch5', 'unit', 'ch6', 'unit', 'ch7', 'unit', 'ch8', 'unit'],
-#electrolyzer_channel=3, electrolyser_daq=2,daq_num=2,min_voltage=500,max_voltage=1500,volt_step_size=250,time_per_step=1800,close_port=True, volt_limit=2000)
-#10000ppm
-#input('10000ppm')
-#voltage_sweep2("voltage_Sweep_4000_ppm_nacl", fieldnames=['systime', 'ch1', 'unit', 'ch2', 'unit', 'ch3', 'unit', 'ch4', 'unit', 'ch5', 'unit', 'ch6', 'unit', 'ch7', 'unit', 'ch8', 'unit'],
-#electrolyzer_channel=3, electrolyser_daq=2,daq_num=2,min_voltage=0,max_voltage=2000,volt_step_size=100,time_per_step=3600,close_port=True, volt_limit=2000)

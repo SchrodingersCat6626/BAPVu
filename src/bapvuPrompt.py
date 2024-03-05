@@ -86,28 +86,28 @@ class bapvuPrompt(Cmd):
                 ## runs default titration experiment
                 # ## Returns and the experiment runs while returning to prompt
 
-                flowrate = input('What is flowrate (ml/min)?: ')
+                flowrate = float(input('What is flowrate (ml/min)?: '))
 
                 edaqs = communications.get_com_ports()
 
                 print('Available eDAQs:')
-                for edaq, idx in enumerate(edaqs):
-                    print('{}) {}'.format(idx+1,edaq))
+                for idx, edaq in enumerate(edaqs):
+                    print('{}) {}'.format(str(idx+1),edaq))
 
                 print('Note: Sensors for sensing titration endpoint must be on the first eDAQ device (for now).')
 
-                electrolyzer_daq = input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : ')
-                electrolyze_channel = input('Which channel is the electrolyser attached to? : ')
+                electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+                electrolyze_channel = int(input('Which channel is the electrolyser attached to? : '))
 
                 #low_ph_sensor_daq = input('Which eDAQ contains sensors to monitor pH at equivalence point? : ')
 
-                list_of_sensor_channel = [int(item) for item in input("Input a list of sensor channels \
-                 of pH sensors used to monitor pH at equivalence point (separated by spaces): ").split()]
+                list_of_sensor_channel = [int(item) for item in input(
+                    "Input a list of sensor channels of pH sensors used to monitor pH at equivalence point (separated by spaces): ").split()]
 
-                datapoints_for_stabilization = input('How many datapoints do you want for stabilization between adjusting \
-                    electrolyser voltage (1 datapoint/sec, ex. 3600 = 1hr): ')
+                datapoints_for_stabilization = int(input(
+                    'How many datapoints do you want for stabilization between adjusting electrolyser voltage (1 datapoint/sec, ex. 3600 = 1hr): '))
                 
-                alkalinity_test(filepath = filepath, fieldnames=fieldnames, electrolyzer_channel=electrolyze_channel, 
+                alkalinity_module.alkalinity_test(filepath = filepath, fieldnames=fieldnames, electrolyzer_channel=electrolyze_channel, 
                 electrolyser_daq=electrolyzer_daq, # the daqs are enumerated in order of COM numbers. 
                 #For example if I have 'COM3' and 'COM4', 'COM3' will be DAQ 1, 'COM4' will be DAQ 2..etc.
                 datapoints_for_stabilization=datapoints_for_stabilization, # seconds
@@ -122,23 +122,35 @@ class bapvuPrompt(Cmd):
             case 'sweep':
                 # do not return until sweep is completed and saved to file.
 
-                daq_num = 1
-                print("The number of eDAQ's set to 1. (Only supported option)")
+                edaqs = communications.get_com_ports()
+
+                print('Available eDAQs:')
+                daq_num = 0
+                for idx, edaq in enumerate(edaqs):
+                    print('{}) {}'.format(str(idx+1),edaq))
+                    daq_num = daq_num+1
+
+                electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
 
                 electrolyzer_channel = int(input("Which channel is the electrolyzer set up on (1,2,3, or 4): "))
                 min_voltage = float(input("Min voltage (mV): "))
                 max_voltage = float(input("Max voltage (mV): "))
                 step_size = float(input("Step size (mV): "))
-                time_per_step = float(input("Time per step (sec) (example:1200 is 20 mins): "))
+                time_per_step = int(input("Time per step (sec) (example:1200 is 20 mins): "))
 
                 print("Volage limit set to 2000 mV by default.")
+                
+                setNewVoltLim = input('Would you like to set a different voltage limit? (y/n): ')
+                
+                if setNewVoltLim.lower() == 'y':
+                    volt_limit = float(input('What would you like to set max voltage to (enter number without units): '))
+                else:
+                    print("Volage limit kept at 2000 mV.")
+                    volt_limit = 2000
+                    
 
-
-                alkalinity_module.voltage_sweep(filepath=filepath, electrolyzer_channel=electrolyzer_channel, 
-                fieldnames=fieldnames,
-                min_voltage=min_voltage, max_voltage=max_voltage,
-                volt_step_size=step_size, volt_limit=2000,
-                time_per_step=time_per_step, daq_num=daq_num)
+                alkalinity_module.voltage_sweep2(filepath=filepath, fieldnames=fieldnames,electrolyser_daq=electrolyzer_daq,electrolyzer_channel=electrolyzer_channel,
+                daq_num=daq_num,min_voltage=min_voltage,max_voltage=max_voltage,volt_step_size=step_size,time_per_step=time_per_step,close_port=True, volt_limit=volt_limit)
                 
                 return
 
