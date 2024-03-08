@@ -97,7 +97,15 @@ class bapvuPrompt(Cmd):
                 print('Note: Sensors for sensing titration endpoint must be on the first eDAQ device (for now).')
 
                 electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+                while electrolyzer_daq > length(edaqs):
+                    print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
+                    electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+
                 electrolyze_channel = int(input('Which channel is the electrolyser attached to? : '))
+                while electrolyzer_daq > 4 or electrolyzer_daq < 1:
+                    print('Invalid input. \n Please select a channel between 1 and 4')
+                    electrolyze_channel = int(input('Which channel is the electrolyser attached to? : '))
+
 
                 #low_ph_sensor_daq = input('Which eDAQ contains sensors to monitor pH at equivalence point? : ')
 
@@ -131,8 +139,15 @@ class bapvuPrompt(Cmd):
                     daq_num = daq_num+1
 
                 electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+                while electrolyzer_daq > length(edaqs):
+                    print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
+                    electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
 
                 electrolyzer_channel = int(input("Which channel is the electrolyzer set up on (1,2,3, or 4): "))
+                while electrolyzer_daq > 4 or electrolyzer_daq < 1:
+                    print('Invalid input. \n Please select a channel between 1 and 4')
+                    electrolyze_channel = int(input('Which channel is the electrolyser attached to? : '))
+
                 min_voltage = float(input("Min voltage (mV): "))
                 max_voltage = float(input("Max voltage (mV): "))
                 step_size = float(input("Step size (mV): "))
@@ -144,6 +159,10 @@ class bapvuPrompt(Cmd):
                 
                 if setNewVoltLim.lower() == 'y':
                     volt_limit = float(input('What would you like to set max voltage to (enter number without units): '))
+                    while volt_limit>2000:
+                        print('Error: The voltage limit cannot larger than 2000mV.')
+                        volt_limit = float(input('What would you like to set max voltage to (enter number without units): '))
+
                 else:
                     print("Volage limit kept at 2000 mV.")
                     volt_limit = 2000
