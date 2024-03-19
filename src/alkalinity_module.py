@@ -17,6 +17,7 @@ from plotting import select
 from scipy.stats import linregress
 from simple_pid import PID
 from time import sleep
+from os.path import exists
 
 """ Groups of functions used when alkalinity mode is active in BaPvu 
 
@@ -24,6 +25,8 @@ To do:
 - remove regeneration of object appearing multiple times. For example, the list of serial objects. Some variables can be declared as global.
 - Implement autoranging
 - Clean code up.
+
+- Refactor code. Use functions like open all ports
 
 """
 
@@ -453,8 +456,10 @@ def voltage_sweep2(filepath, fieldnames, electrolyzer_channel, electrolyser_daq,
 
 
 def titrate(serial_obj, electrolyzer_channel, electrolyzer_state, current_setpoint, LinregressResult,
-buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False, debug_pid=False): # 1 datapoint = 1 second
+buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False, debug_pid=False) -> dict: 
+# 1 datapoint = 1 second
     """ 
+    returns updated electrolyzer state as dictionary.
     """
     # Temp fix for debugging
     daq_num=1
@@ -470,7 +475,8 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
     voltage_setpoint = starting_volt
 
-    pid = PID(1,0,0, setpoint=current_setpoint)
+    from simple_pid import PID
+    pid = PID(1.05,0.1,0.05,setpoint=current_setpoint) # initializing PID with current setpoint
 
     delta_current = pid(current) # computes new current adjustment
 
@@ -539,11 +545,6 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
         print('Current is already equal to current setpoint!')
         return electrolyzer_state
-
-
-
-
-
 
 
 
@@ -801,13 +802,7 @@ datapoints_for_stabilization=1200, starting_volt=800, volt_step_size_initial=100
 
         return 0
 
-def titration_test():
-
-    from simple_pid import PID
-    pid = PID(setpoint=1000, auto_mode=False)
-    print(pid)
-
-
+def open_all_ports() -> list:
     ports = communications.get_com_ports()
     ser = [
             serial.Serial(
@@ -821,46 +816,98 @@ def titration_test():
         for port in ports
         ]
 
-    serial_obj = ser[1] # electrolyzer on second eDAQ
+    return ser
 
-    electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath=None, fieldnames=['systime','ch1','units', 'ch2','units', 'ch3','units', 'ch4','units'], 
-    electrolyzer_channel=3,min_voltage=1000,max_voltage=1200, volt_step_size=50,
-    time_per_step=5, volt_limit=2000,
-    return_calibration=True) # since return calibration is True, this will return a regression.
+def titration_test(filename: str, fieldnames: list, currentTargets: list, repeats: int, 
+electrolyser_daq: int, electrolyze_channel: int) -> None:
+    """ Evaluates ability to reach current targets. Can be used to change between pHs.
+    """
+    
+    dev_channel_num = 4 # number of channels per device
 
-    for serial_obj in ser:
-        serial_obj.close()
+    ser = open_all_ports()
+    
+    serial_obj_electrolyzer = ser[electrolyser_daq-1] # selecting serial object containing electrolysis
 
-    ports = communications.get_com_ports()
-    ser = [
-            serial.Serial(
-            port = port,
-            timeout=None, #Waits indefinitely for data to be returned.
-            baudrate = 115200,
-            bytesize=8,
-            parity='N',
-            stopbits=1)
-        
-        for port in ports
-        ]
+    electrolyser_idx = electrolyzer_channel+(dev_channel_num*(electrolyser_daq-1))
+    # getting index of electrolyser column
+    # since index 0 is systime, this math works out
+    # ex. if electrolyser is channel 4 on daq 1, this equals to index of 4. (idx 0 being systime)
+    # This also assumes that the unit column is removed.
+    
 
-    serial_obj = ser[1] # electrolyzer on second eDAQ
+    repeat_counter = 0
 
-    voltage = set_electrolyzer_potential(serial_obj, potential=0, channel=3, beep=True, close_port=False)
+    print('Setting voltage to 0 mV.')
+    voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, 
+    channel=electrolyze_channel, beep=True, close_port=False) # should return current
 
-    results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state={'current':-160, 'voltage':0}, pid=pid, current_setpoint=1000, 
-    LinregressResult=electrolyzer_response, max_voltage=2000, debug_pid=True)
-    print(results)
-    while True:
-        results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=2000,pid=pid, LinregressResult=electrolyzer_response, max_voltage=2000)
-        print(results)
-        results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=3000,pid=pid, LinregressResult=electrolyzer_response, max_voltage=2000)
-        print(results)
-        results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=500,pid=pid, LinregressResult=electrolyzer_response, max_voltage=2000)
-        print(results)
-        results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=5000, pid=pid,LinregressResult=electrolyzer_response, max_voltage=2000)
-        print(results)
-        results = titrate(serial_obj=serial_obj, electrolyzer_channel=3, electrolyzer_state=results, current_setpoint=1000,pid=pid, LinregressResult=electrolyzer_response, max_voltage=2000)
-        print(results)
+    print('Reading initial current')
+    # read current
+    initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyze_channel,close_port=False)
+
+    # recording initial electrolyser state
+    electrolyser_state = {'current':initial_current, 'voltage':voltage}
+
+    while repeat_counter != repeats:
+
+        for current in currentTargets:
+
+            print('Calibrating electrolyser.')
+            print('This may take a while.')
+            
+            electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
+            fieldnames=fieldnames, 
+            electrolyzer_channel=electrolyzer_channel,
+            min_voltage=0,max_voltage=2000, volt_step_size=10,
+            time_per_step=10, volt_limit=2000,
+            return_calibration=True) # since return calibration is True, this will return a regression.
+
+
+            #if exists('latest_electrolyser_calibration'):
+            #    print('Previous electrolyser calibration found.')
+            #    response = input('Would you like to load this calibration (y/n)? ')
+            #
+            #    if response.lower() == 'n':
+#
+#                    print('Calibrating electrolyser.')
+#                    print('This may take a while.')
+#
+#                    electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
+#                    fieldnames=fieldnames, 
+#                    electrolyzer_channel=electrolyzer_channel,
+#                    min_voltage=0,max_voltage=2000, volt_step_size=100,
+#                    time_per_step=10, volt_limit=2000,
+#                    return_calibration=True) # since return calibration is True, this will return a regression.
+#
+#                elif response == 'y':
+#
+                    
+ #                   new_buff = []
+  #                  for line in buffer: 
+   #                     new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
+    #                    new_buff.append(new_line)
+     #                   buffer = new_buff
+      #                  start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
+       #                 x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = electrolyser_idx,
+        #                 dtype='float')
+         #               regress = linregress(x=x, y=y)
+          #      
+           #     else:
+            #        print('Calibrating electrolyser.')
+             #       print('This may take a while.')
+
+
+            results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyze_channel, 
+            electrolyzer_state=electrolyser_state, current_setpoint=current, 
+            LinregressResult=electrolyzer_response, max_voltage=2000, debug_pid=True)
+
+            print(results)
+            
+        repeat_counter = repeat_counter+1 # incrementing repeats
+
+            
+        for serial_obj in ser:
+            serial_obj.close()
 
 
