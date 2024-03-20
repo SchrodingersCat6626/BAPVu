@@ -863,12 +863,12 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
 
         for current in currentTargets:
 
-            print('Calibrating electrolyser.')
-            print('This may take a while.')
-
             if not exists('latest_electrolyser_calibration'):
 
                 print('Could not find past calibration.')
+
+                print('Calibrating electrolyser.')
+                print('This may take a while.')
             
                 electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
                 fieldnames=fieldnames, 
