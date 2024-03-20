@@ -173,6 +173,55 @@ class bapvuPrompt(Cmd):
                 
                 return
 
+            case 'test1':
+
+                print('Test 1 is designed to test the ability to switch currents between given values.')
+
+                edaqs = communications.get_com_ports()
+
+                print('Available eDAQs:')
+                daq_num = 0
+                for idx, edaq in enumerate(edaqs):
+                    print('{}) {}'.format(str(idx+1),edaq))
+                    daq_num = daq_num+1
+
+                electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+                while electrolyzer_daq > length(edaqs):
+                    print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
+                    electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
+
+                electrolyzer_channel = int(input("Which channel is the electrolyzer set up on (1,2,3, or 4): "))
+                while electrolyzer_daq > 4 or electrolyzer_daq < 1:
+                    print('Invalid input. \n Please select a channel between 1 and 4')
+                    electrolyze_channel = int(input('Which channel is the electrolyser attached to? : '))
+
+                time_per_step = int(input("Time per step (sec) (example:1200 is 20 mins): "))
+
+                currentTargets =[int(item) for item in input(
+                    "Input a list of currents to target (separated by spaces, integers only): ").split()]
+
+                rep = input('How many times would you like to repeat this test? (enter integer): ')
+
+                print("Volage limit set to 2000 mV by default.")
+                
+                setNewVoltLim = input('Would you like to set a different voltage limit? (y/n): ')
+                
+                if setNewVoltLim.lower() == 'y':
+                    volt_limit = float(input('What would you like to set max voltage to (enter number without units): '))
+                    while volt_limit>2000:
+                        print('Error: The voltage limit cannot larger than 2000mV.')
+                        volt_limit = float(input('What would you like to set max voltage to (enter number without units): '))
+
+                else:
+                    print("Volage limit kept at 2000 mV.")
+                    volt_limit = 2000
+                    
+
+                alkalinity_module.titration_test(filename=filepath,fieldnames=fieldnames,electrolyser_daq=electrolyzer_daq,electrolyzer_channel=electrolyzer_channel,
+                daq_num=daq_num,datapoints_for_stabilization=time_per_step,repeats=rep,currentTargets=currentTargets, volt_limit=volt_limit)
+ 
+                return
+
 
 
     def do_stats(self, inp):
