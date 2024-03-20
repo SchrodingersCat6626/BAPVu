@@ -29,7 +29,6 @@ class bapvuPrompt(Cmd):
         global filepath
 
         filepath=fileHandling.namefile() # must select filename before starting program
-        #filepath='test'
 
         print(filepath)
 
@@ -198,7 +197,7 @@ class bapvuPrompt(Cmd):
 
                 time_per_step = int(input("Time per step (sec) (example:1200 is 20 mins): "))
 
-                currentTargets =[int(item) for item in input(
+                currentTargets =[float(item) for item in input(
                     "Input a list of currents to target (separated by spaces, integers only): ").split()]
 
                 rep = input('How many times would you like to repeat this test? (enter integer): ')
