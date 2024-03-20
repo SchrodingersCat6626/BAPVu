@@ -28,7 +28,8 @@ class bapvuPrompt(Cmd):
 
         global filepath
 
-        filepath=fileHandling.namefile() # must select filename before starting program.
+        filepath=fileHandling.namefile() # must select filename before starting program
+        #filepath='test'
 
         print(filepath)
 
@@ -97,7 +98,7 @@ class bapvuPrompt(Cmd):
                 print('Note: Sensors for sensing titration endpoint must be on the first eDAQ device (for now).')
 
                 electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
-                while electrolyzer_daq > length(edaqs):
+                while electrolyzer_daq > len(edaqs):
                     print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
                     electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
 
@@ -139,7 +140,7 @@ class bapvuPrompt(Cmd):
                     daq_num = daq_num+1
 
                 electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
-                while electrolyzer_daq > length(edaqs):
+                while electrolyzer_daq > len(edaqs):
                     print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
                     electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
 
@@ -186,7 +187,7 @@ class bapvuPrompt(Cmd):
                     daq_num = daq_num+1
 
                 electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
-                while electrolyzer_daq > length(edaqs):
+                while electrolyzer_daq > len(edaqs):
                     print('This eDAQ does not exist.\n Please choose one of the available eDAQs')
                     electrolyzer_daq = int(input('Which eDAQ number contains the electrolyzer channel (1,2,3...etc.)? : '))
 
