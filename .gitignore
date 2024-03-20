@@ -1,5 +1,9 @@
 BAPVu.code-workspace
+venv/
 calibration_data.csv
 t_alk.txt
 test2_do_not_overwrite.csv
 *.csv
+*.pyc
+tempCodeRunnerFile.py
+test
