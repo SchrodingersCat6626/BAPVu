@@ -18,6 +18,9 @@ from scipy.stats import linregress
 from simple_pid import PID
 from time import sleep
 from os.path import exists
+from plotting import readNewChunk
+from plotting import decode_chunk
+from plotting import select
 
 """ Groups of functions used when alkalinity mode is active in BaPvu 
 
@@ -818,10 +821,17 @@ def open_all_ports() -> list:
 
     return ser
 
+
+#def read_data_while_stabilizing(serial_obj:list, filename:str, ) -> str:
+
+
 def titration_test(filename: str, fieldnames: list, currentTargets: list, repeats: int, 
-electrolyser_daq: int, electrolyze_channel: int) -> None:
+electrolyser_daq: int, electrolyzer_channel: int, daq_num:int, # number of daq's available in total.
+datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
+) -> None:
     """ Evaluates ability to reach current targets. Can be used to change between pHs.
     """
+    print('Note: the program currently assumes the electrolyser is at the same location that it was during the calibration.')
     
     dev_channel_num = 4 # number of channels per device
 
@@ -840,11 +850,11 @@ electrolyser_daq: int, electrolyze_channel: int) -> None:
 
     print('Setting voltage to 0 mV.')
     voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, 
-    channel=electrolyze_channel, beep=True, close_port=False) # should return current
+    channel=electrolyzer_channel, beep=True, close_port=False) # should return current
 
     print('Reading initial current')
     # read current
-    initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyze_channel,close_port=False)
+    initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,close_port=False)
 
     # recording initial electrolyser state
     electrolyser_state = {'current':initial_current, 'voltage':voltage}
@@ -855,59 +865,102 @@ electrolyser_daq: int, electrolyze_channel: int) -> None:
 
             print('Calibrating electrolyser.')
             print('This may take a while.')
+
+            if not exists('latest_electrolyser_calibration'):
+
+                print('Could not find past calibration.')
             
-            electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
-            fieldnames=fieldnames, 
-            electrolyzer_channel=electrolyzer_channel,
-            min_voltage=0,max_voltage=2000, volt_step_size=10,
-            time_per_step=10, volt_limit=2000,
-            return_calibration=True) # since return calibration is True, this will return a regression.
+                electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
+                fieldnames=fieldnames, 
+                electrolyzer_channel=electrolyzer_channel,
+                min_voltage=0,max_voltage=volt_limit, volt_step_size=1,
+                time_per_step=10, volt_limit=volt_limit,
+                return_calibration=True) # since return calibration is True, this will return a regression.
+
+            else:
+                print('Previous electrolyser calibration found.')
+                response = input('Would you like to load this calibration (y/n)? ')
+            
+                if response.lower() == 'n':
+
+                    print('Calibrating electrolyser.')
+                    print('This may take a while.')
+
+                    electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
+                    fieldnames=fieldnames, 
+                    electrolyzer_channel=electrolyzer_channel,
+                    min_voltage=0,max_voltage=volt_limit, volt_step_size=1,
+                    time_per_step=10, volt_limit=volt_limit,
+                    return_calibration=True) # since return calibration is True, this will return a regression.
+
+                elif response == 'y':
+
+                    electrolyzer_calibration = readNewChunk('latest_electrolyser_calibration')
+                    electrolyzer_calibration = decode_chunk(electrolyzer_calibration,nth=2) # removing unit cols. skips first col by default
+
+                    electrolyser_currents = select(lstOfLsts=electrolyzer_calibration,index=electrolyser_idx,dtype='float')
+                    electrolyser_voltages = select(lstOfLsts=electrolyzer_calibration,index=-1,dtype='float')
+                
+                    electrolyzer_response = linregress(x=electrolyser_voltages, y=electrolyser_currents) # change to appropriate regression
+
+                
+                else:
+                    print('invalid input.')
+                    return
 
 
-            #if exists('latest_electrolyser_calibration'):
-            #    print('Previous electrolyser calibration found.')
-            #    response = input('Would you like to load this calibration (y/n)? ')
-            #
-            #    if response.lower() == 'n':
-#
-#                    print('Calibrating electrolyser.')
-#                    print('This may take a while.')
-#
-#                    electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
-#                    fieldnames=fieldnames, 
-#                    electrolyzer_channel=electrolyzer_channel,
-#                    min_voltage=0,max_voltage=2000, volt_step_size=100,
-#                    time_per_step=10, volt_limit=2000,
-#                    return_calibration=True) # since return calibration is True, this will return a regression.
-#
-#                elif response == 'y':
-#
-                    
- #                   new_buff = []
-  #                  for line in buffer: 
-   #                     new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
-    #                    new_buff.append(new_line)
-     #                   buffer = new_buff
-      #                  start_idx = find_closest_index(select(buffer, index=-1, dtype='float'), min_voltage) # The voltage channel in the last column
-       #                 x, y = select(buffer,index=-1, dtype='float'), select(buffer, index = electrolyser_idx,
-        #                 dtype='float')
-         #               regress = linregress(x=x, y=y)
-          #      
-           #     else:
-            #        print('Calibrating electrolyser.')
-             #       print('This may take a while.')
-
-
-            results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyze_channel, 
+            results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, 
             electrolyzer_state=electrolyser_state, current_setpoint=current, 
-            LinregressResult=electrolyzer_response, max_voltage=2000, debug_pid=True)
+            LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance)
 
             print(results)
+
+            while counter != datapoints_for_stabilization:
+
+                sleep(1)
+                data = []
+                
+                for serial_obj in ser:
+                    new_data = communications.read_data(serial_obj)
+                    data.extend(new_data)
             
+                if len(data) != expected_rowsize:
+                    print('Warning: Unexpected row size. Row discarded.')
+                    continue
+            
+                time_received = time()
+                data.insert(0, str(time_received))
+                data.extend([str(electrolyzer_state['voltage']),'mV'])
+            
+                buffer.append(data)
+            
+                counter = counter + 1
+
+                print('Data: {}'.format(data))
+
+                print('Iteration count: {}'.format(counter))
+            
+                if len(buffer) == datapoints_for_stabilization: # write to file before each potential increment.
+
+                    print('computing diff pH...')
+
+                    new_buff = []
+                    for line in buffer: 
+                        new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
+                        new_buff.append(new_line)
+
+                        latest_electrolyzer_current = float(buffer[-1][electrolyser_idx]) # to compute the idx number regardless of edaq num
+
+                    electrolyzer_state.update({'current':latest_electrolyzer_current})
+
+                    communications.write_to_file(buffer,new_filepath)
+
+                    buffer = [] # clears buffer
+                
         repeat_counter = repeat_counter+1 # incrementing repeats
 
             
-        for serial_obj in ser:
-            serial_obj.close()
+    for serial_obj in ser:
+        serial_obj.close()
 
-
+    return
