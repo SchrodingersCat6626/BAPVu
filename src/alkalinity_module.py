@@ -335,6 +335,9 @@ def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_vo
 
     if return_calibration is True:
         """ Assuming that relationship between voltage and current is linear after 1.3V (about the max redox pot. for water electrolysis) """
+
+        communications.write_to_file(buffer,filepath) # saving calibration data
+
         new_buff = []
         for line in buffer: 
             new_line = remove_every_nth(line, 2, skip_first_element=True) # removing unit cols for clarity
@@ -889,7 +892,7 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
                     electrolyzer_response = voltage_sweep(serial_obj=serial_obj, filepath='latest_electrolyser_calibration', 
                     fieldnames=fieldnames, 
                     electrolyzer_channel=electrolyzer_channel,
-                    min_voltage=0,max_voltage=volt_limit, volt_step_size=1,
+                    min_voltage=0,max_voltage=volt_limit, volt_step_size=10, ### temp
                     time_per_step=10, volt_limit=volt_limit,
                     return_calibration=True) # since return calibration is True, this will return a regression.
 
