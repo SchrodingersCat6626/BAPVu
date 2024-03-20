@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from random import randrange
 
-def readNewChunk(filename,chunkSize=None):
+def readNewChunk(filename,chunkSize=None) -> list:
     """ Reads the end of file to obtain new chunk of data.
     By default chunk_size is set to None. If this is the case. It will read from end to file to beginning if a chunk size is specified.
     """
