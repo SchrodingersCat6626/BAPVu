@@ -126,7 +126,7 @@ def set_electrolyzer_potential(serial_obj, potential, channel, beep=True, close_
 
     return new_potential
 
-def get_channel_current(serial_obj, channel, close_port=False):
+def get_channel_current(serial_obj, channel, close_port=False) -> float:
     
     serial_obj.flush()
     serial_obj.reset_output_buffer() # discarding data in output buffer to get most recent reading.
@@ -149,7 +149,7 @@ def get_channel_current(serial_obj, channel, close_port=False):
         serial_obj.close()
 
 
-    return current
+    return float(current)
 
 
 def autorange_current(serial_obj, old_range, channel, current_voltage, next_voltage):
@@ -684,7 +684,7 @@ datapoints_for_stabilization=1200, starting_volt=800, volt_step_size_initial=100
     voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, channel=electrolyzer_channel, beep=True, close_port=False)
     print('Success!')
 
-    current = float(get_channel_current(serial_obj_electrolyzer, electrolyzer_channel))
+    current = get_channel_current(serial_obj_electrolyzer, electrolyzer_channel)
     print('Waiting for current from residual voltage to subside.')
     sleep(30)
     electrolyzer_state = {'voltage':voltage, 'current':current}
@@ -858,6 +858,7 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
     print('Reading initial current')
     # read current
     initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,close_port=False)
+    print(type(initial_current))
 
     # recording initial electrolyser state
     electrolyser_state = {'current':initial_current, 'voltage':voltage}
@@ -876,8 +877,8 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
                 electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
                 fieldnames=fieldnames, 
                 electrolyzer_channel=electrolyzer_channel,
-                min_voltage=0,max_voltage=volt_limit, volt_step_size=1,
-                time_per_step=10, volt_limit=volt_limit,
+                min_voltage=0,max_voltage=volt_limit, volt_step_size=10, ## temp
+                time_per_step=5, volt_limit=volt_limit,
                 return_calibration=True) # since return calibration is True, this will return a regression.
 
             else:
@@ -910,6 +911,8 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
                 else:
                     print('invalid input.')
                     return
+
+            print('Setting current to {}'.format(current))
 
 
             results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, 
