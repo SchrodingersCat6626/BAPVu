@@ -151,6 +151,32 @@ def get_channel_current(serial_obj, channel, close_port=False) -> float:
 
     return float(current)
 
+def get_channel_voltage(serial_obj, channel, close_port=False) -> float:
+    
+    serial_obj.flush()
+    serial_obj.reset_output_buffer() # discarding data in output buffer to get most recent reading.
+    serial_obj.reset_input_buffer()
+    command = 'get channel {} Vex'.format(channel)
+    communications.write_data(serial_obj, command)
+
+    response = []
+    
+    while len(response) != 5: # wait for respones of correct len
+        response = communications.read_data(serial_obj) # returns list
+
+        try:
+            response.remove('EPU452>')
+        except ValueError:
+            continue
+    
+    voltage = response[3]
+
+    if close_port is True:
+        serial_obj.close()
+
+
+    return float(voltage)
+
 
 def autorange_current(serial_obj, old_range, channel, current_voltage, next_voltage):
 
@@ -466,6 +492,7 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 # 1 datapoint = 1 second
     """ 
     returns updated electrolyzer state as dictionary.
+    Expect the linear model to be log(y)
     """
     # Temp fix for debugging
     daq_num=1
@@ -481,12 +508,16 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
     voltage_setpoint = starting_volt
 
+
+
     from simple_pid import PID
-    pid = PID(1.05,0.1,0.05,setpoint=current_setpoint) # initializing PID with current setpoint
+    pid = PID(1.05,setpoint=current_setpoint) # initializing PID with current setpoint
 
     delta_current = pid(current) # computes new current adjustment
 
     buffer = []
+    
+    overall_count = 0
 
     while not isclose(current, current_setpoint, abs_tol=tol): 
 
@@ -494,50 +525,100 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
             print("Error: Attempting to exceed rated voltage.")
             return
 
+        print(current)
+
         delta_current = pid(current) # computes new current adjustment
 
-        voltage_setpoint = round(predict_voltage(current+delta_current, LinregressResult),1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+        print('delta_current: {}'.format(delta_current))
 
-        print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
+        try:
 
-        voltage = set_electrolyzer_potential(serial_obj, potential=voltage_setpoint, channel=electrolyzer_channel, beep=False, close_port=False)
-        communications.write_data(serial_obj, 'i 1')
+            voltage_setpoint = round(
+                predict_voltage(
+                    log10(current+delta_current), LinregressResult),
+                1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+
+            print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
+
+            voltage = set_electrolyzer_potential(serial_obj, potential=voltage_setpoint, channel=electrolyzer_channel, beep=False, close_port=False)
+            communications.write_data(serial_obj, 'i 1')
+
+        except ValueError:
+
+            print('ValueError')
+
 
         counter = 0 # counts the number of lines appended to dictionary
 
-        while counter != stabilization_time: ### change to datapoints for stabilization
+        if overall_count == 0:
 
-            sleep(1)
+            while counter != 120: ### change to datapoints for stabilization
 
-            data = []
+                sleep(1)
 
-            new_data = communications.read_data(serial_obj)
-            data.extend(new_data)
+                data = []
 
-            if len(data) != expected_rowsize:
-                print('Warning: Unexpected row size. Row discarded.')
-                continue
+                new_data = communications.read_data(serial_obj)
+                data.extend(new_data)
 
-            #time_received = time()
-            #data.insert(0, str(time_received))
-            #data.extend([str(electrolyzer_setpoint),'mV'])
+                if len(data) != expected_rowsize:
+                    print('Warning: Unexpected row size. Row discarded.')
+                    continue
 
-            data = remove_every_nth(data,2,skip_first_element=False)
-            buffer.append(data)
+                #time_received = time()
+                #data.insert(0, str(time_received))
+                #data.extend([str(electrolyzer_setpoint),'mV'])
 
-            counter = counter + 1
+                data = remove_every_nth(data,2,skip_first_element=False)
+                buffer.append(data)
 
-            current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
+                counter = counter + 1
 
-            if debug_pid is True:
-                print('Current: {}nA'.format(current))
+                current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
+
+                if debug_pid is True:
+                    print('Current: {}nA'.format(current))
 
 
-            if counter==stabilization_time:
-                buffer = [] # clears buffer
+                if counter==stabilization_time:
+                    buffer = [] # clears buffer
 
+        else:
+
+            while counter != stabilization_time: ### change to datapoints for stabilization
+
+                sleep(1)
+
+                data = []
+
+                new_data = communications.read_data(serial_obj)
+                data.extend(new_data)
+
+                if len(data) != expected_rowsize:
+                    print('Warning: Unexpected row size. Row discarded.')
+                    continue
+
+                #time_received = time()
+                #data.insert(0, str(time_received))
+                #data.extend([str(electrolyzer_setpoint),'mV'])
+
+                data = remove_every_nth(data,2,skip_first_element=False)
+                buffer.append(data)
+
+                counter = counter + 1
+
+                current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
+
+                if debug_pid is True:
+                    print('Current: {}nA'.format(current))
+
+
+                if counter==stabilization_time:
+                    buffer = [] # clears buffer
 
                 ### change to update dict object, rather than create a new one.
+
+        overall_count = overall_count+1
 
 
     if close_port is True:
@@ -832,7 +913,7 @@ def open_all_ports() -> list:
 
 def titration_test(filename: str, fieldnames: list, currentTargets: list, repeats: int, 
 electrolyser_daq: int, electrolyzer_channel: int, daq_num:int, # number of daq's available in total.
-datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
+datapoints_for_stabilization:int, volt_limit=2000, tolerance=100 #nA
 ) -> None:
     """ Evaluates ability to reach current targets. Can be used to change between pHs.
     """
@@ -858,9 +939,12 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
 
     repeat_counter = 0
 
-    print('Setting voltage to 0 mV.')
-    voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, 
-    channel=electrolyzer_channel, beep=True, close_port=False) # should return current
+    #print('Setting voltage to 0 mV.')
+    #voltage = set_electrolyzer_potential(serial_obj_electrolyzer, potential=0, 
+    #channel=electrolyzer_channel, beep=True, close_port=False) # should return current
+
+    voltage = get_channel_voltage(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,close_port=False)
+    print('Voltage left at {}mV'.format(voltage))
 
     print('Reading initial current')
     # read current
@@ -897,17 +981,24 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
             electrolyzer_channel=electrolyzer_channel,
             min_voltage=0,max_voltage=volt_limit, volt_step_size=1,
             time_per_step=7, volt_limit=volt_limit,
-            return_calibration=True) # since return calibration is True, this will return a regression.
+            return_calibration=True) # since return calibration is True, this will return a regression. # changed to log calibration. should add argument for this
 
         elif response == 'y':
 
             electrolyzer_calibration = readNewChunk('latest_electrolyser_calibration')
-            electrolyzer_calibration = decode_chunk(electrolyzer_calibration,nth=2) # removing unit cols. skips first col by default
+            electrolyzer_calibration = decode_chunk(electrolyzer_calibration,nth=2) # removing unit cols. skips first col by defau
+            
 
             electrolyser_currents = select(lstOfLsts=electrolyzer_calibration,index=electrolyser_idx,dtype='float')
             electrolyser_voltages = select(lstOfLsts=electrolyzer_calibration,index=-1,dtype='float')
+
+            electrolyser_currents.pop(0) # removing first element as a quick fix
+            electrolyser_voltages.pop(0) # removing first element as a quick fix
+
+            print(electrolyser_currents)
         
-            electrolyzer_response = linregress(x=electrolyser_voltages, y=electrolyser_currents) # change to appropriate regression
+            electrolyzer_response = linregress(x=electrolyser_voltages, y=[log10(y) for y in electrolyser_currents]) # change to appropriate regression
+            print('Information from loaded model: {}'.format(electrolyzer_response))
 
         
         else:
@@ -925,7 +1016,7 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20, #nA
 
             results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, 
             electrolyzer_state=electrolyser_state, current_setpoint=current, 
-            LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=1)
+            LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=20)
 
             print(results)
 
