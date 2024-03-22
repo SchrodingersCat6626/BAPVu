@@ -21,6 +21,7 @@ from os.path import exists
 from plotting import readNewChunk
 from plotting import decode_chunk
 from plotting import select
+from statistics import fmean
 
 """ Groups of functions used when alkalinity mode is active in BaPvu 
 
@@ -509,9 +510,8 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
     voltage_setpoint = starting_volt
 
 
-
     from simple_pid import PID
-    pid = PID(1.05,setpoint=current_setpoint) # initializing PID with current setpoint
+    pid = PID(1.05,0.1,0.05,setpoint=current_setpoint) # initializing PID with current setpoint
 
     delta_current = pid(current) # computes new current adjustment
 
@@ -531,12 +531,18 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
         print('delta_current: {}'.format(delta_current))
 
+        next_target_current = current+delta_current
+
+        print('new target current: {}'.format(next_target_current))
+
+        log_next_target_current = log10(next_target_current)
+
+        print('log new target current: {}'.format(log_next_target_current))
+
         try:
 
             voltage_setpoint = round(
-                predict_voltage(
-                    log10(current+delta_current), LinregressResult),
-                1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+                predict_voltage(log_next_target_current, LinregressResult),1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
 
             print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
 
@@ -552,7 +558,7 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
         if overall_count == 0:
 
-            while counter != 120: ### change to datapoints for stabilization
+            while counter != 60: ### change to datapoints for stabilization
 
                 sleep(1)
 
@@ -607,7 +613,10 @@ buffer=None, tol=1, stabilization_time = 15, max_voltage=2000, close_port=False,
 
                 counter = counter + 1
 
-                current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
+                lst_of_currents = select(buffer,index=electrolyzer_channel-1,dtype='float')
+
+                current = fmean(lst_of_currents)
+                #current = float(buffer[-1][electrolyzer_channel-1]) # getting new_current of electrolyser #10 nA of tolerance
 
                 if debug_pid is True:
                     print('Current: {}nA'.format(current))
@@ -913,7 +922,7 @@ def open_all_ports() -> list:
 
 def titration_test(filename: str, fieldnames: list, currentTargets: list, repeats: int, 
 electrolyser_daq: int, electrolyzer_channel: int, daq_num:int, # number of daq's available in total.
-datapoints_for_stabilization:int, volt_limit=2000, tolerance=100 #nA
+datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 ) -> None:
     """ Evaluates ability to reach current targets. Can be used to change between pHs.
     """
@@ -1016,7 +1025,7 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=100 #nA
 
             results = titrate(serial_obj=serial_obj_electrolyzer, electrolyzer_channel=electrolyzer_channel, 
             electrolyzer_state=electrolyser_state, current_setpoint=current, 
-            LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=20)
+            LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=3)
 
             print(results)
 
