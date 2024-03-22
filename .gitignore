@@ -7,3 +7,6 @@ test2_do_not_overwrite.csv
 *.pyc
 tempCodeRunnerFile.py
 test
+calibration_model.pdf
+latest_electrolyser_calibration
+src/latest_electrolyser_calibration
