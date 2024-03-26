@@ -205,6 +205,47 @@ def autorange_current(serial_obj, old_range, channel, current_voltage, next_volt
     
     return new_range
 
+def autorange_current2(serial_obj, channel, new_current, previous_range=None):
+
+    available_ranges = [20, 200, 2000, 20000, 200000, 2000000] # nA
+    # documentation: https://www.edaq.com/wiki/EPU452_Manual
+
+    if previous_range is None: 
+
+        for current_range in available_ranges:
+
+            if current_range > new_current*1.5:
+
+                new_range = current_range
+
+            else:
+
+                continue
+
+    elif previous_range<new_current*1.5: # if new_current*1.5 is greater than current range,
+        # adjust the range
+
+        for current_range in available_ranges:
+
+            if current_range > new_current*1.5:
+
+                new_range = current_range
+
+            else:
+
+                continue
+    
+    else: # then range should not be changed
+
+        return previous_range
+
+
+    command = 'set channel {} range {}'.format(channel,new_range)
+    communications.write_data(serial_obj, command)
+
+    print('Current range adjusted.')
+    
+    return new_range
 
 def check_sensor_drift():
     """ Takes sensor data and returns sensor drift in nA/h """
@@ -1063,8 +1104,11 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
         for current in currentTargets:
 
+            current_range_electrolyser = autorange_current2(serial_obj_electrolyzer,
+            channel=electrolyzer_channel,new_current=current)
+
             pid.setpoint = current # changing setpoint to new current target
-            pid.output_limits = [-current,200000] # limits the pid calcs. to -current to max limit of range (in this case 200000nA) 
+            pid.output_limits = [-current,current_range_electrolyser] # limits the pid calcs. to -current to max limit of range (in this case 200000nA) 
 
             print('Current setpoint set to: {} nA'.format(current))
 
@@ -1074,7 +1118,7 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
             while counter != datapoints_for_stabilization:
 
-                sleep(1)
+                #sleep(1) # is sleep necessary?
                 data = []
                 
                 for serial_obj in ser:
@@ -1124,6 +1168,9 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
                         print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
 
                         electrolyser_state.update({'voltage':voltage_setpoint})
+
+                        current_range_electrolyser = autorange_current2(serial_obj_electrolyzer,
+                        channel=electrolyzer_channel,new_current=next_target_current,previous_range=current_range_electrolyser)
 
                         voltage = set_electrolyzer_potential(
                             serial_obj_electrolyzer, potential=voltage_setpoint, 
