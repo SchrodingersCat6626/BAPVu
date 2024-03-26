@@ -1040,22 +1040,10 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
         for current in currentTargets:
 
+            pid.setpoint = current # changing setpoint to new current target
+            pid.output_limits = [-current,200000] # limits the pid calcs. to -current to max limit of range (in this case 200000nA) 
 
-
-            print('Setting current to {}'.format(current))
-
-            if abs(current-electrolyser_state['current'])>20: # if difference is greater than 20 nA
-                results = titrate(serial_obj=serial_obj_electrolyzer, pid=pid, electrolyzer_channel=electrolyzer_channel, 
-                electrolyzer_state=electrolyser_state, current_setpoint=current, 
-                LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=2)
-
-
-                pid = results[1]
-                electrolyser_state = results[0] # unpacking results and returning pid loop
-                results = results[0]
-                
-
-                print(results)
+            print('Current setpoint set to: {} nA'.format(current))
 
             counter = 0
 
@@ -1078,28 +1066,56 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
                 data.insert(0, str(time_received))
                 data.extend([str(electrolyser_state['voltage']),'mV'])
 
-                data_no_units = remove_every_nth(data, n=2,skip_first_element=True)
-                latest_electrolyzer_current = float(data_no_units[electrolyser_idx]) # to compute the idx number regardless of edaq num
-
-                electrolyser_state.update({'current':latest_electrolyzer_current})
-
-                if abs(current-electrolyser_state['current'])>150: # if difference is greater than 100 nA
-                        results = titrate(serial_obj=serial_obj_electrolyzer, pid=pid, electrolyzer_channel=electrolyzer_channel, 
-                        electrolyzer_state=electrolyser_state, current_setpoint=current, 
-                        LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=2)
-
-                        pid = results[1]
-                        electrolyser_state = results[0] # unpacking results and returning pid loop
-                        results = results[0] # unpacking results and returning pid loop
-
-            
                 buffer.append(data)
-            
-                counter = counter + 1
 
                 print('Data: {}'.format(data))
 
                 print('Iteration count: {}'.format(counter))
+
+
+                data_no_units = remove_every_nth(data, n=2,skip_first_element=True)
+                latest_electrolyzer_current = float(data_no_units[electrolyser_idx]) # to compute the idx number regardless of edaq num
+
+                electrolyser_state.update({'current':latest_electrolyzer_current})
+                    
+                try:
+                    
+                    next_target_current = current+delta_current
+                    
+                    print('new target current: {}'.format(next_target_current))
+
+                    log_next_target_current = log10(next_target_current)
+
+                    print('log new target current: {}'.format(log_next_target_current))
+
+                    voltage_setpoint = round(
+                        predict_voltage(log_next_target_current,electrolyzer_response),
+                        1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+
+                    if voltage_setpoint <= volt_limit:
+
+                        print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
+
+                        electrolyser_state.update({'voltage':voltage_setpoint})
+
+                        voltage = set_electrolyzer_potential(
+                            serial_obj_electrolyzer, potential=voltage_setpoint, 
+                            channel=electrolyzer_channel, beep=False, close_port=False)
+
+                    else: 
+                        print('Error: attempting to exceed rated voltage!')
+                        print('Voltage not changed.')
+
+                    for ser in serial_obj:
+                        communications.write_data(serial_obj, 'i 1')
+
+
+                except ValueError:
+
+                    print('ValueError')
+        
+                counter = counter + 1
+
             
                 if len(buffer) == datapoints_for_stabilization: # write to file before each potential increment.
 
@@ -1109,7 +1125,6 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
                 
         repeat_counter = repeat_counter+1 # incrementing repeats
 
-            
     for serial_obj in ser:
         serial_obj.close()
 
