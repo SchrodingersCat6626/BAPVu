@@ -247,6 +247,19 @@ def find_closest_index(lst, target):
     return min(range(len(lst)), key=lambda i: abs(lst[i] - target))
 
 
+def find_x_from_y(x, y, deg, value, threshold=1E-6):
+    """ To work with polynomial fits:
+    https://stackoverflow.com/questions/63668483/python-use-polyval-to-predict-x-passing-y
+    """
+
+    # subtract the y value, fit a polynomial, then find the roots of it
+    r = np.roots(np.polyfit(x, y - value, deg))
+
+    # return only the real roots.. due to numerical errors, you
+    # must introduce a threshold value to its complex part.
+    return r.real[abs(r.imag) < threshold]
+
+
 def predict_voltage(targetCurrent, LinregressResult):
     """ Accepts LinregressResult instance (https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.linregress.html#scipy.stats.linregress).
     Uses the regression to predict the voltage required to reach a setpoint current to speed up titrations. It is assumed that the relationship between electrolyser
@@ -933,9 +946,13 @@ def open_all_ports() -> list:
 
 def titration_test(filename: str, fieldnames: list, currentTargets: list, repeats: int, 
 electrolyser_daq: int, electrolyzer_channel: int, daq_num:int, # number of daq's available in total.
-datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
+datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA 
 ) -> None:
     """ Evaluates ability to reach current targets. Can be used to change between pHs.
+
+
+    Need to add option to change fit type. just changed to polyfit. Or the program can just compare R^2 of
+    different fits and select the best one.
     """
     print('Note: the program currently assumes the electrolyser is at the same location that it was during the calibration.')
     
@@ -1025,11 +1042,17 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
             ## remove column titles! otherwise math error.
 
-            #electrolyzer_response = np.poly1d(np.polyfit(electrolyser_voltages, electrolyser_currents, 9))
-            electrolyzer_response = linregress(x=electrolyser_voltages, y=[log10(abs(y)) for y in electrolyser_currents]) # change to appropriate regression
+
+            fit = np.polyfit(electrolyser_voltages, electrolyser_currents, 9)
+
+            print('Fitted Parameters:\n {}'.format(fit))
+            #electrolyzer_response = np.poly1d(fit)
+            
+            
+            #electrolyzer_response = linregress(x=electrolyser_voltages, y=[log10(abs(y)) for y in electrolyser_currents]) # change to appropriate regression
             # set to abs(y) since at very low values the current can be 'negative'. This is due to not autoranging during calibration and otherwise
             # needs a better fix.
-            print('Information from loaded model: {}'.format(electrolyzer_response))
+            #print('Information from loaded model: {}'.format(electrolyzer_response))
 
         
         else:
@@ -1078,19 +1101,23 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
                 electrolyser_state.update({'current':latest_electrolyzer_current})
                     
-                try:
+                try: # try except here for log. However, the log fit is deprecated.
                     
                     next_target_current = current+delta_current
                     
                     print('new target current: {}'.format(next_target_current))
 
-                    log_next_target_current = log10(next_target_current)
+                    #log_next_target_current = log10(next_target_current)
 
-                    print('log new target current: {}'.format(log_next_target_current))
+                    #print('log new target current: {}'.format(log_next_target_current))
 
-                    voltage_setpoint = round(
-                        predict_voltage(log_next_target_current,electrolyzer_response),
-                        1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+                    #voltage_setpoint = round(
+                    #    predict_voltage(next_target_current,electrolyzer_response),
+                    #    1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
+                        # should take fit type in the future
+
+                    voltage_setpoint = find_x_from_y(x=electrolyser_voltages, # both x and y params are loaded from cal file
+                    y=electrolyser_currents,value=next_target_current,deg=9,threshold=1E-6)
 
                     if voltage_setpoint <= volt_limit:
 
