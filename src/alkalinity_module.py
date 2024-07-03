@@ -441,7 +441,7 @@ def voltage_sweep(serial_obj, filepath, fieldnames, electrolyzer_channel, min_vo
 
     return
 
-def voltage_sweep2(filepath, fieldnames, electrolyzer_channel, electrolyser_daq, daq_num, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step,close_port=True):
+def voltage_sweep2(filepath, fieldnames, electrolyzer_channel, electrolyser_daq, daq_num, min_voltage, max_voltage, volt_step_size, volt_limit, time_per_step,close_port=True,verbose=False):
     """ Sweeps electrolyzer voltage and records voltage, current and time in a separate file
     This data can be combined with sensing data to examine the relationship between electrolyzer current/voltage and pH.
     The pH can be calibrated separately.
@@ -528,6 +528,9 @@ def voltage_sweep2(filepath, fieldnames, electrolyzer_channel, electrolyser_daq,
             data.extend([str(electrolyzer_setpoint),'mV'])
 
             buffer.append(data)
+
+            if verbose is True:
+                print(data)
 
             counter = counter + 1
             
@@ -1203,3 +1206,10 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
         serial_obj.close()
 
     return
+
+
+voltage_sweep2(
+    filepath="test_electrolyser_new_circuit2", 
+    fieldnames=["systime","sensor1_j11","units","sensor2_j11","units","sensor3_j11","units",'ch4','units','voltmeter_100k_shunt',"units",'op_amp_non_inverting',"units",'ch7','units','pH','units'], 
+    electrolyzer_channel=2, electrolyser_daq=2, daq_num=2, min_voltage=1000, max_voltage=2000, 
+    volt_step_size=100,volt_limit=2000, time_per_step=3600,close_port=True, verbose=True) 
