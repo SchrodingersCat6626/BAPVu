@@ -198,7 +198,7 @@ class bapvuPrompt(Cmd):
                 time_per_step = int(input("Time per step (sec) (example:1200 is 20 mins): "))
 
                 currentTargets =[float(item) for item in input(
-                    "Input a list of currents to target (separated by spaces, integers only): ").split()]
+                    "Input a list of currents to target: ").split()]
 
                 rep = input('How many times would you like to repeat this test? (enter integer): ')
 
