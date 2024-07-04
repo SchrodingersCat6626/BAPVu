@@ -992,7 +992,9 @@ def titration_test(filename: str, fieldnames: list, currentTargets: list, repeat
 electrolyser_daq: int, electrolyzer_channel: int, daq_num:int, # number of daq's available in total.
 datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA 
 ) -> None:
-    """ Evaluates ability to reach current targets. Can be used to change between pHs.
+    """ Evaluates ability to reach current targets. Can be used to change between pHs
+
+    Note: I have not yet adapted this to read electrolyser current from voltmeter channel
 
 
     Need to add option to change fit type. just changed to polyfit. Or the program can just compare R^2 of
@@ -1004,10 +1006,10 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
     ser = open_all_ports()
     
-    serial_obj_electrolyzer = ser[electrolyser_daq-1] # selecting serial object containing electrolysis
+    serial_obj_electrolyzer = ser[electrolyser_daq-1] # selecting serial object containing electrolyser
 
     electrolyser_idx = electrolyzer_channel+(dev_channel_num*(electrolyser_daq-1))
-    print(electrolyser_idx)
+
     # getting index of electrolyser column
     # since index 0 is systime, this math works out
     # ex. if electrolyser is channel 4 on daq 1, this equals to index of 4. (idx 0 being systime)
@@ -1018,12 +1020,12 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
     data_len_per_device = dev_channel_num*data_expected_per_channel
     expected_rowsize = data_len_per_device*daq_num
     
-    from simple_pid import PID
-    pid = PID(
-        1.25, #Kp, proportionality constant
-        0.2, # weight of integral term
-        0.1 #kd weight of derivative term
-        ) # initializing PID
+    #from simple_pid import PID
+    #pid = PID(
+    #    1.25, #Kp, proportionality constant
+    #    0.2, # weight of integral term
+    #    0.1 #kd weight of derivative term
+    #    ) # initializing PID
         # https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller#:~:text=A%20proportional%E2%80%93integral%E2%80%93derivative%20controller%20%28PID%20controller%20or%20three-term%20controller%29,variety%20of%20other%20applications%20requiring%20continuously%20modulated%20control.
 
     repeat_counter = 0
@@ -1037,83 +1039,103 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
 
     print('Reading initial current')
     # read current
-    initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,close_port=False)
+
+    #initial_current = get_channel_current(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,close_port=False)
 
     # recording initial electrolyser state
-    electrolyser_state = {'current':initial_current, 'voltage':voltage}
+    #electrolyser_state = {'current':initial_current, 'voltage':voltage}
 
-    if not exists('latest_electrolyser_calibration'):
+    #if not exists('latest_electrolyser_calibration'):
+#
+    #    print('Could not find past calibration.')
+#
+    #    print('Calibrating electrolyser.')
+    #    print('This may take a while.')
+    #
+    #    electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
+    #    fieldnames=fieldnames, 
+    #    electrolyzer_channel=electrolyzer_channel,
+    #    min_voltage=600,max_voltage=volt_limit, volt_step_size=1,
+    #    time_per_step=7, volt_limit=volt_limit,
+    #    return_calibration=True) # since return calibration is True, this will return a regression.
 
-        print('Could not find past calibration.')
-
-        print('Calibrating electrolyser.')
-        print('This may take a while.')
-    
-        electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
-        fieldnames=fieldnames, 
-        electrolyzer_channel=electrolyzer_channel,
-        min_voltage=600,max_voltage=volt_limit, volt_step_size=1,
-        time_per_step=7, volt_limit=volt_limit,
-        return_calibration=True) # since return calibration is True, this will return a regression.
-
-    else:
-        print('Previous electrolyser calibration found.')
-        response = input('Would you like to load this calibration (y/n)? ')
-    
-        if response.lower() == 'n':
-
-            print('Calibrating electrolyser.')
-            print('This may take a while.')
-
-            electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
-            fieldnames=fieldnames, 
-            electrolyzer_channel=electrolyzer_channel,
-            min_voltage=600,max_voltage=volt_limit, volt_step_size=1,
-            time_per_step=7, volt_limit=volt_limit,
-            return_calibration=True) # since return calibration is True, this will return a regression. # changed to log calibration. should add argument for this
-
-        elif response == 'y':
-
-            electrolyzer_calibration = readNewChunk('latest_electrolyser_calibration')
-            electrolyzer_calibration = decode_chunk(electrolyzer_calibration,nth=2) # removing unit cols. skips first col by defau
-            
-
-            electrolyser_currents = select(lstOfLsts=electrolyzer_calibration,index=electrolyser_idx,dtype='float')
-            electrolyser_voltages = select(lstOfLsts=electrolyzer_calibration,index=-1,dtype='float')
-
-            electrolyser_currents.pop(0) # removing first element as a quick fix
-            electrolyser_voltages.pop(0) # removing first element as a quick fix
-
-            ## remove column titles! otherwise math error.
-
-
-            fit = np.polyfit(electrolyser_voltages, electrolyser_currents, 9)
-
-            print('Fitted Parameters:\n {}'.format(fit))
-            #electrolyzer_response = np.poly1d(fit)
-            
-            
-            #electrolyzer_response = linregress(x=electrolyser_voltages, y=[log10(abs(y)) for y in electrolyser_currents]) # change to appropriate regression
-            # set to abs(y) since at very low values the current can be 'negative'. This is due to not autoranging during calibration and otherwise
-            # needs a better fix.
-            #print('Information from loaded model: {}'.format(electrolyzer_response))
-
-        
-        else:
-            print('invalid input.')
-            return
+    #else:
+    #    print('Previous electrolyser calibration found.')
+    #    response = input('Would you like to load this calibration (y/n)? ')
+    #
+    #    if response.lower() == 'n':
+#
+    #        print('Calibrating electrolyser.')
+    #        print('This may take a while.')
+#
+    #        electrolyzer_response = voltage_sweep(serial_obj=serial_obj_electrolyzer, filepath='latest_electrolyser_calibration', 
+    #        fieldnames=fieldnames, 
+    #        electrolyzer_channel=electrolyzer_channel,
+    #        min_voltage=600,max_voltage=volt_limit, volt_step_size=1,
+    #        time_per_step=7, volt_limit=volt_limit,
+    #        return_calibration=True) # since return calibration is True, this will return a regression. # changed to log calibration. should add argument for this
+#
+    #    elif response == 'y':
+#
+    #        electrolyzer_calibration = readNewChunk('latest_electrolyser_calibration')
+    #        electrolyzer_calibration = decode_chunk(electrolyzer_calibration,nth=2) # removing unit cols. skips first col by defau
+    #        
+#
+    #        electrolyser_currents = select(lstOfLsts=electrolyzer_calibration,index=electrolyser_idx,dtype='float')
+    #        electrolyser_voltages = select(lstOfLsts=electrolyzer_calibration,index=-1,dtype='float')
+#
+    #        electrolyser_currents.pop(0) # removing first element as a quick fix
+    #        electrolyser_voltages.pop(0) # removing first element as a quick fix
+#
+    #        ## remove column titles! otherwise math error.
+#
+    #        #electrolyzer_response = np.poly1d(np.polyfit(electrolyser_voltages, electrolyser_currents, 9))
+    #        electrolyzer_response = linregress(x=electrolyser_voltages, y=[log10(abs(y)) for y in electrolyser_currents]) # change to appropriate regression
+    #        # set to abs(y) since at very low values the current can be 'negative'. This is due to not autoranging during calibration and otherwise
+    #        # needs a better fix.
+    #        print('Information from loaded model: {}'.format(electrolyzer_response))
+#
+    #    
+    #    else:
+    #        print('invalid input.')
+    #        return
 
     while repeat_counter != repeats:
 
         for current in currentTargets:
 
-            current_range_electrolyser = autorange_current2(serial_obj_electrolyzer,
-            channel=electrolyzer_channel,new_current=current)
+            # since shunt resistor is 100kohm, we can calculate the potential setpoint required:
 
-            pid.setpoint = current # changing setpoint to new current target
-            pid.output_limits = [-current,current_range_electrolyser] # limits the pid calcs. to -current to max limit of range (in this case 200000nA) 
+            new_pot = round(
+                ((current*10**(-6) # converting current target, given in uA to amps
+                )*100000 # 100kohm
+                )*1000, # to convert volt to mv
+                1) # rounding anwser to 1 decimal (max setpoint precision of eDAQ device) 
 
-            print('Current setpoint set to: {} nA'.format(current))
+
+
+            print('Setting current to {} uA'.format(current))
+
+            set_electrolyzer_potential(serial_obj=serial_obj_electrolyzer,channel=electrolyzer_channel,potential=new_pot)
+
+            for serial_obj in ser:
+                communications.write_data(serial_obj, 'i 1')
+
+
+
+
+            #if abs(current-electrolyser_state['current'])>20: # if difference is greater than 20 nA
+            #    results = titrate(serial_obj=serial_obj_electrolyzer, pid=pid, electrolyzer_channel=electrolyzer_channel, 
+            #    electrolyzer_state=electrolyser_state, current_setpoint=current, 
+            #    LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=2)
+#
+#
+            #    pid = results[1]
+            #    electrolyser_state = results[0] # unpacking results and returning pid loop
+            #    results = results[0]
+            #    
+#
+            #    print(results)
 
             counter = 0
 
@@ -1134,65 +1156,33 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
             
                 time_received = time()
                 data.insert(0, str(time_received))
-                data.extend([str(electrolyser_state['voltage']),'mV'])
+                data.extend([str(new_pot
+
+                    #electrolyser_state['voltage']
+
+                    ),'mV'])
+
+                data_no_units = remove_every_nth(data, n=2,skip_first_element=True)
+                #latest_electrolyzer_current = float(data_no_units[electrolyser_idx]) # to compute the idx number regardless of edaq num
+
+                #electrolyser_state.update({'current':latest_electrolyzer_current})
+
+                #if abs(current-electrolyser_state['current'])>150: # if difference is greater than 100 nA
+                #        results = titrate(serial_obj=serial_obj_electrolyzer, pid=pid, electrolyzer_channel=electrolyzer_channel, 
+                #        electrolyzer_state=electrolyser_state, current_setpoint=current, 
+                #        LinregressResult=electrolyzer_response, max_voltage=volt_limit, debug_pid=True, tol=tolerance,stabilization_time=2)
+#
+                #        pid = results[1]
+                #        electrolyser_state = results[0] # unpacking results and returning pid loop
+                #        results = results[0] # unpacking results and returning pid loop
 
                 buffer.append(data)
+            
+                counter = counter + 1
 
                 print('Data: {}'.format(data))
 
                 print('Iteration count: {}'.format(counter))
-
-
-                data_no_units = remove_every_nth(data, n=2,skip_first_element=True)
-                latest_electrolyzer_current = float(data_no_units[electrolyser_idx]) # to compute the idx number regardless of edaq num
-
-                electrolyser_state.update({'current':latest_electrolyzer_current})
-                    
-                try: # try except here for log. However, the log fit is deprecated.
-                    
-                    next_target_current = current+delta_current
-                    
-                    print('new target current: {}'.format(next_target_current))
-
-                    #log_next_target_current = log10(next_target_current)
-
-                    #print('log new target current: {}'.format(log_next_target_current))
-
-                    #voltage_setpoint = round(
-                    #    predict_voltage(next_target_current,electrolyzer_response),
-                    #    1) # in mV, rounds to 1 decimal point since that is the most precision available in eDAQ
-                        # should take fit type in the future
-
-                    voltage_setpoint = find_x_from_y(x=electrolyser_voltages, # both x and y params are loaded from cal file
-                    y=electrolyser_currents,value=next_target_current,deg=9,threshold=1E-6)
-
-                    if voltage_setpoint <= volt_limit:
-
-                        print('next voltage setpoint determined to be: {} mV'.format(voltage_setpoint))
-
-                        electrolyser_state.update({'voltage':voltage_setpoint})
-
-                        current_range_electrolyser = autorange_current2(serial_obj_electrolyzer,
-                        channel=electrolyzer_channel,new_current=next_target_current,previous_range=current_range_electrolyser)
-
-                        voltage = set_electrolyzer_potential(
-                            serial_obj_electrolyzer, potential=voltage_setpoint, 
-                            channel=electrolyzer_channel, beep=False, close_port=False)
-
-                    else: 
-                        print('Error: attempting to exceed rated voltage!')
-                        print('Voltage not changed.')
-
-                    for ser in serial_obj:
-                        communications.write_data(serial_obj, 'i 1')
-
-
-                except ValueError:
-
-                    print('ValueError')
-        
-                counter = counter + 1
-
             
                 if len(buffer) == datapoints_for_stabilization: # write to file before each potential increment.
 
@@ -1208,8 +1198,20 @@ datapoints_for_stabilization:int, volt_limit=2000, tolerance=20 #nA
     return
 
 
-voltage_sweep2(
-    filepath="test_electrolyser_new_circuit2", 
-    fieldnames=["systime","sensor1_j11","units","sensor2_j11","units","sensor3_j11","units",'ch4','units','voltmeter_100k_shunt',"units",'op_amp_non_inverting',"units",'ch7','units','pH','units'], 
-    electrolyzer_channel=2, electrolyser_daq=2, daq_num=2, min_voltage=1000, max_voltage=2000, 
-    volt_step_size=100,volt_limit=2000, time_per_step=3600,close_port=True, verbose=True) 
+#fieldnames=['sens1_1', 'sens1_2', 'sens1_3', 'sens2_1', 'voltmeter','non-inv_inp','sens2_2','sens2_3']
+#
+#fieldnames = ',units,'.join(fieldnames)
+#fieldnames = fieldnames.split(',')
+#fieldnames.insert(0,'systime')
+#fieldnames.append('unit')
+#
+#titration_test(filename="electrolyser_circuit_cycling_exp.csv", 
+#fieldnames=fieldnames, 
+#currentTargets=[1,2,1], repeats=2, 
+#electrolyser_daq=2, electrolyzer_channel=2, 
+#daq_num=2, # number of daq's available in total.
+#datapoints_for_stabilization=10, volt_limit=2000, tolerance=20 #nA
+#)
+
+
+##############################################
